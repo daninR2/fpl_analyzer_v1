@@ -92,10 +92,9 @@ function poissonAtLeast(mean: number, k: number) {
 }
 
 export function availability(el: RawElement) {
-  if (["i", "s", "u", "n"].includes(el.status)) return el.chance_of_playing_next_round ?? 0 > 0 ? (el.chance_of_playing_next_round ?? 0) / 100 : 0;
-  if (el.chance_of_playing_next_round !== null && el.chance_of_playing_next_round !== undefined)
-    return el.chance_of_playing_next_round / 100;
-  return 1;
+  const chance = el.chance_of_playing_next_round;
+  if (chance !== null && chance !== undefined) return chance / 100;
+  return ["i", "s", "u", "n"].includes(el.status) ? 0 : 1;
 }
 
 type TeamStrength = { attack: number; defence: number };
