@@ -4,16 +4,6 @@ function PlayerChip({ pick }: { pick: SquadPick }) {
   return (
     <div className="flex w-[4.5rem] flex-col items-center gap-1 sm:w-24">
       <div className="relative w-full rounded-lg border border-border/70 bg-card/90 px-1 py-1.5 text-center shadow-sm">
-        {pick.isCaptain ? (
-          <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-            C
-          </span>
-        ) : null}
-        {pick.isViceCaptain ? (
-          <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-foreground">
-            V
-          </span>
-        ) : null}
         <p className="truncate text-[11px] font-semibold sm:text-xs">{pick.name}</p>
         <p className="text-[10px] text-muted-foreground">{pick.team}</p>
       </div>

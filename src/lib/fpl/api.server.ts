@@ -1,7 +1,7 @@
-// Server-only FPL API client. The FPL API blocks browser CORS requests, so all
+// Server-only Draft FPL API client. The FPL API blocks browser CORS requests, so all
 // fetching happens here, behind a Postgres cache in public.api_cache.
 
-const BASE = "https://fantasy.premierleague.com/api";
+const BASE = "https://draft.premierleague.com/api";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
