@@ -2,9 +2,9 @@
 
 A web app for Fantasy Premier League managers that turns live FPL data into point projections, transfer guidance, and league-wide charts.
 
-**Live demo:** [ADD YOUR DEPLOYED URL HERE]
+**Live demo:** [Coming Soon!]
 
-![FPL Analyzer screenshot]
+[FPL Analyzer screenshot]
 <img width="1350" height="679" alt="image" src="https://github.com/user-attachments/assets/e8dd69ef-db0c-461d-87cc-4d881089d3b9" />
 
 
