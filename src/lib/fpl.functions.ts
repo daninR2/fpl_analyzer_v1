@@ -101,6 +101,7 @@ export const getManager = createServerFn({ method: "POST" })
       const e = data.entry.entry;
       const leagueId = e.league_set?.[0] ?? null;
       let league: ManagerPayload["league"] = null;
+      let leagueHistory: ManagerPayload["leagueHistory"] = [];
       if (leagueId) {
         try {
           const l = (await loadLeague(leagueId)).data;
@@ -116,8 +117,56 @@ export const getManager = createServerFn({ method: "POST" })
             total: row?.total ?? 0,
             entries: l.league_entries.length,
           };
+          const finishedMatches = (l.matches ?? []).filter((match) => match.finished);
+          leagueHistory = await Promise.all(
+            l.league_entries.flatMap((leagueEntry) =>
+              leagueEntry.entry_id
+                ? [
+                    (async () => {
+                      const entryId = leagueEntry.entry_id as number;
+                      const historyResult = await cached<{ history: HistoryEntry[] }>(
+                        `draft:history:${entryId}`,
+                        TTL.manager,
+                        () => fplFetch(`/entry/${entryId}/history`),
+                      );
+                      let wins = 0;
+                      let draws = 0;
+                      let losses = 0;
+                      const history = (historyResult.data.history ?? []).map((point) => {
+                        const match = finishedMatches.find(
+                          (item) =>
+                            item.event === point.event &&
+                            (item.league_entry_1 === leagueEntry.id || item.league_entry_2 === leagueEntry.id),
+                        );
+                        if (match) {
+                          const mine = match.league_entry_1 === leagueEntry.id ? match.league_entry_1_points : match.league_entry_2_points;
+                          const theirs = match.league_entry_1 === leagueEntry.id ? match.league_entry_2_points : match.league_entry_1_points;
+                          if (mine > theirs) wins += 1;
+                          else if (mine === theirs) draws += 1;
+                          else losses += 1;
+                        }
+                        return {
+                          event: point.event,
+                          points: point.points,
+                          totalPoints: point.total_points,
+                          recordPoints: wins * 3 + draws,
+                          record: `${wins}-${draws}-${losses}`,
+                        };
+                      });
+                      return {
+                        entryId,
+                        teamName: leagueEntry.entry_name,
+                        isCurrentTeam: entryId === teamId,
+                        history,
+                      };
+                    })(),
+                  ]
+                : [],
+            ),
+          );
         } catch {
           league = null;
+          leagueHistory = [];
         }
       }
 
@@ -133,6 +182,7 @@ export const getManager = createServerFn({ method: "POST" })
           currentEvent: bootstrap.data.events.current ?? null,
         },
         league,
+        leagueHistory,
         history: (data.history.history ?? []).map((h) => ({
           event: h.event,
           points: h.points,
@@ -337,7 +387,8 @@ export const getInsights = createServerFn({ method: "POST" })
       gamesPlayed: finishedGames,
     });
     const strip = (p: ReturnType<typeof players.get>): InsightPlayer => {
-      const { teamId: _t, totalPoints: _tp, ...rest } = p!;
+      if (!p) throw new Error("Player projection unavailable.");
+      const { teamId: _t, totalPoints: _tp, ...rest } = p;
       return rest;
     };
 
@@ -410,6 +461,8 @@ export const getInsights = createServerFn({ method: "POST" })
     // Greedy best swaps: same position (draft squads have fixed shape).
     const candidates: Recommendation[] = [];
     for (const drop of squad) {
+      // Early-season model swings should not create sell calls on proven assets.
+      if (finishedGames <= 8 && drop.established && drop.availability >= 0.25) continue;
       for (const add of freeAgents.filter((f) => f.positionId === drop.positionId).slice(0, 15)) {
         const gain = round(add.total - drop.total);
         if (gain < 0.5) continue;
@@ -428,7 +481,10 @@ export const getInsights = createServerFn({ method: "POST" })
           reasons.push(`Plays more: ${Math.round(add.minutesShare * 100)}% of minutes vs ${Math.round(drop.minutesShare * 100)}%`);
         if (add.fixtures.length > drop.fixtures.length) reasons.push("Has more fixtures in this window");
         if (reasons.length === 0) reasons.push("Higher projected points over the next few gameweeks");
-        candidates.push({ add, drop, gain, reasons });
+        const caution = drop.established
+          ? `${drop.name} has a strong 2025/26 track record, so this may not be a good long-term move.`
+          : null;
+        candidates.push({ add, drop, gain, reasons, caution });
       }
     }
     candidates.sort((a, b) => b.gain - a.gain);

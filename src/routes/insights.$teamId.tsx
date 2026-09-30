@@ -216,7 +216,7 @@ function InsightsPage() {
                     <ArrowRight className="h-4 w-4 shrink-0 rotate-180 text-muted-foreground" />
                     <div className="min-w-0 text-right">
                       <p className="text-xs uppercase tracking-wider text-destructive">Drop</p>
-                      <p className="truncate font-semibold">{r.drop.name}</p>
+                       <p className="truncate font-semibold">{r.drop.name}{r.drop.established ? "*" : ""}</p>
                       <p className="text-xs text-muted-foreground">
                         {r.drop.team} · {r.drop.total.toFixed(1)} xPts
                       </p>
@@ -228,6 +228,11 @@ function InsightsPage() {
                       <li key={reason}>• {reason}</li>
                     ))}
                   </ul>
+                   {r.caution ? (
+                     <p className="mt-3 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning">
+                       * {r.caution}
+                     </p>
+                   ) : null}
                   <div className="mt-3 flex items-center justify-between gap-2 text-xs">
                     <FixtureChips p={r.add} />
                   </div>
