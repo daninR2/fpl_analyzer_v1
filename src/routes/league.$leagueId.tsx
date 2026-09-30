@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getFreeAgents, getLeague } from "@/lib/fpl.functions";
 import { cn } from "@/lib/utils";
 
-const searchSchema = z.object({ team: z.string().optional() });
+const searchSchema = z.object({ team: z.coerce.string().optional() });
 
 export const Route = createFileRoute("/league/$leagueId")({
   validateSearch: (search) => searchSchema.parse(search),
