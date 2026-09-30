@@ -143,7 +143,7 @@ function Dashboard() {
         rows.set(point.event, row);
       }
     }
-    return [...rows.values()].sort((a, b) => Number(a.event) - Number(b.event));
+    return [...rows.values()].sort((a, b) => Number(a["event"]) - Number(b["event"]));
   }, [data?.leagueHistory, leagueMetric]);
   
   return (
