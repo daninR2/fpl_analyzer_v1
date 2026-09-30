@@ -72,7 +72,7 @@ function SideList({ side, event, align }: { side: MatchupSide; event: number; al
           <span className={cn("min-w-0 truncate", align === "right" && "text-right")}>
             <span className="font-medium">{p.name}</span>{" "}
             <span className="text-xs text-muted-foreground">
-              {p.position} · {p.fixtures.filter((f) => f.event === event).map((f) => f.opponent).join(", ") || "—"}
+              {p.position} · vs {p.fixtures.filter((f) => f.event === event).map((f) => f.opponent).join(", ") || "—"}
             </span>
             {p.availability < 1 ? <span className="ml-1 text-xs text-destructive">{Math.round(p.availability * 100)}%</span> : null}
           </span>
