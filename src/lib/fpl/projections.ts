@@ -68,6 +68,14 @@ export type PlayerProjection = {
   fixtures: FixtureProjection[];
   total: number;
   established: boolean;
+  /** Projected points over the window if fully fit. */
+  healthyTotal: number;
+  /** New to the Premier League (no meaningful 2025/26 minutes). */
+  isNew: boolean;
+  /** Missed a large part of 2025/26 (likely injury) but is a regular now; last season's numbers are ignored. */
+  priorInjured: boolean;
+  /** Currently injured/doubtful with a parsed return date, if FPL gave one. */
+  injury: { returnDate: string | null } | null;
 };
 
 const POS = ["", "GKP", "DEF", "MID", "FWD"];
@@ -186,7 +194,14 @@ export function projectPlayers(opts: {
     const pos = e.element_type;
     const mins = e.minutes;
     const nineties = mins / 90;
-    const prior = playerPriors[String(e.code)];
+    const rawPrior = playerPriors[String(e.code)];
+    const minutesShareNow = clamp(mins / (gp * 90), 0, 1);
+    // A player who missed most of 2025/26 (e.g. a long injury) but is a regular
+    // now: last season's partial numbers are unrepresentative, so drop them.
+    const priorInjured =
+      !!rawPrior && rawPrior.minutes > 0 && rawPrior.minutes < 1_700 && gamesPlayed >= 1 && minutesShareNow >= 0.6;
+    const prior = priorInjured ? undefined : rawPrior;
+    const isNew = !rawPrior || rawPrior.minutes < 450;
     const priorNineties = Math.min((prior?.minutes ?? 0) / 90, 8);
     const priorXg90 = prior && prior.minutes > 0 ? (prior.xg / prior.minutes) * 90 : XG_PRIOR[pos]!;
     const priorXa90 = prior && prior.minutes > 0 ? (prior.xa / prior.minutes) * 90 : XA_PRIOR[pos]!;
@@ -207,6 +222,7 @@ export function projectPlayers(opts: {
     const fixturesOut: FixtureProjection[] = [];
     const byEvent: Record<number, number> = {};
     for (const ev of events) byEvent[ev] = 0;
+    let healthyTotal = 0;
 
     for (const fx of byTeam.get(e.team) ?? []) {
       const attackRatio = own ? fx.lamFor / own.attack : 1;
@@ -228,6 +244,7 @@ export function projectPlayers(opts: {
 
       // Light blend with actual points-per-game to capture what the model misses.
       if (mins >= 180) pts = 0.85 * pts + 0.15 * ppg * clamp(attackRatio, 0.8, 1.2);
+      healthyTotal += Math.max(0, pts);
       pts = Math.max(0, pts * avail);
 
       byEvent[fx.event] = (byEvent[fx.event] ?? 0) + pts;
@@ -263,10 +280,20 @@ export function projectPlayers(opts: {
         !!prior &&
         prior.minutes >= 1_200 &&
         prior.points >= ([0, 85, 90, 100, 95][pos] ?? 100),
+      healthyTotal: round(healthyTotal),
+      isNew,
+      priorInjured,
+      injury: avail < 1 && ["i", "d", "s"].includes(e.status) ? { returnDate: returnDate(e.news ?? "") } : null,
     });
   }
   for (const [t, s] of strength) teamDifficulty.set(teamName.get(t) ?? "", round(s.attack - s.defence, 2));
   return { players, teamDifficulty };
+}
+
+/** Pulls a return date out of FPL news, e.g. "Knee injury - Expected back 25 Oct". */
+export function returnDate(news: string): string | null {
+  const m = news.match(/(?:expected back|until)\s+([^.,;]+)/i);
+  return m?.[1]?.trim() ?? null;
 }
 
 export function round(n: number, dp = 1) {

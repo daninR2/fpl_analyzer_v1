@@ -172,6 +172,10 @@ export type InsightPlayer = {
   fixtures: { event: number; opponent: string; home: boolean; difficulty: 1 | 2 | 3 | 4 | 5; xPts: number }[];
   total: number;
   established: boolean;
+  healthyTotal: number;
+  isNew: boolean;
+  priorInjured: boolean;
+  injury: { returnDate: string | null } | null;
 };
 
 export type MatchupSide = {
@@ -196,7 +200,17 @@ export type Recommendation = {
   caution: string | null;
 };
 
+export type Stash = {
+  add: InsightPlayer;
+  drop: InsightPlayer | null;
+  need: "high" | "medium";
+  /** Expected points per gameweek over your current starter once fit. */
+  gainPerGw: number;
+  reason: string;
+};
+
 export type InsightsPayload = {
+  stashes: Stash[];
   teamName: string;
   leagueId: number;
   events: number[];

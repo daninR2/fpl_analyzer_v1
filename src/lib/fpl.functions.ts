@@ -9,6 +9,7 @@ import type {
   Matchup,
   MatchupSide,
   Recommendation,
+  Stash,
   FreeAgentsPayload,
   H2HMatch,
   HistoryEntry,
@@ -458,11 +459,17 @@ export const getInsights = createServerFn({ method: "POST" })
       .map(strip)
       .sort((a, b) => b.total - a.total);
 
+    const add_threshold = (p: InsightPlayer) => events.length * ([0, 3, 3, 3.5, 3.5][p.positionId] ?? 3.5);
+
     // Greedy best swaps: same position (draft squads have fixed shape).
     const candidates: Recommendation[] = [];
     for (const drop of squad) {
       // Early-season model swings should not create sell calls on proven assets.
-      if (finishedGames <= 8 && drop.established && drop.availability >= 0.25) continue;
+      if (finishedGames <= 8 && (drop.established || drop.priorInjured) && drop.availability >= 0.25) continue;
+      // New arrivals get ~10 gameweeks to bed in before we suggest dropping them.
+      if (drop.isNew && finishedGames < 10) continue;
+      // Injured quality players are long-term holds, not drops.
+      if (drop.injury && (drop.established || drop.priorInjured) && drop.healthyTotal >= add_threshold(drop)) continue;
       for (const add of freeAgents.filter((f) => f.positionId === drop.positionId).slice(0, 15)) {
         const gain = round(add.total - drop.total);
         if (gain < 0.5) continue;
@@ -481,7 +488,9 @@ export const getInsights = createServerFn({ method: "POST" })
           reasons.push(`Plays more: ${Math.round(add.minutesShare * 100)}% of minutes vs ${Math.round(drop.minutesShare * 100)}%`);
         if (add.fixtures.length > drop.fixtures.length) reasons.push("Has more fixtures in this window");
         if (reasons.length === 0) reasons.push("Higher projected points over the next few gameweeks");
-        const caution = drop.established
+        const caution = drop.injury
+          ? `${drop.name} is injured${drop.injury.returnDate ? ` (expected back ${drop.injury.returnDate})` : ""} and may be a good long-term hold.`
+          : drop.established
           ? `${drop.name} has a strong 2025/26 track record, so this may not be a good long-term move.`
           : null;
         candidates.push({ add, drop, gain, reasons, caution });
@@ -499,7 +508,43 @@ export const getInsights = createServerFn({ method: "POST" })
       })
       .slice(0, 6);
 
+    // Injured free agents worth stashing early before a rival snipes them.
+    // Scored by how much they'd beat the squad's current starter in that slot.
+    const STARTERS = [0, 1, 4, 4, 2];
+    const perGw = (p: InsightPlayer) => p.healthyTotal / events.length;
+    const injuredFas = [...players.values()]
+      .filter((p) => !owned.has(p.playerId) && p.injury && p.availability <= 0.5)
+      .map(strip)
+      .filter((p) => p.established || p.priorInjured || perGw(p) >= 4)
+      .sort((a, b) => b.healthyTotal - a.healthyTotal)
+      .slice(0, 40);
+    const stashCandidates: Stash[] = [];
+    for (const add of injuredFas) {
+      const mine = squad
+        .filter((p) => p.positionId === add.positionId)
+        .sort((a, b) => perGw(b) - perGw(a));
+      const benchmark = mine[(STARTERS[add.positionId] ?? 1) - 1] ?? mine[mine.length - 1];
+      const gainPerGw = round(perGw(add) - (benchmark ? perGw(benchmark) : 0));
+      if (gainPerGw < 0.8) continue;
+      const droppable = mine
+        .filter((p) => !p.established && !p.priorInjured && !(p.isNew && finishedGames < 10) && !p.injury)
+        .sort((a, b) => a.total - b.total)[0] ?? null;
+      const need = gainPerGw >= 1.8 ? "high" : "medium";
+      stashCandidates.push({
+        add,
+        drop: droppable,
+        need,
+        gainPerGw,
+        reason:
+          need === "high"
+            ? `Once fit, ${add.name} would be a clear upgrade on your ${add.position} options. Grab them before a rival does.`
+            : `Once fit, ${add.name} should outscore your current ${add.position} starters.`,
+      });
+    }
+    const stashes = stashCandidates.sort((a, b) => b.gainPerGw - a.gainPerGw).slice(0, 4);
+
     return {
+      stashes,
       teamName: entry.name,
       leagueId,
       events,

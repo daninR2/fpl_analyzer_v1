@@ -231,7 +231,7 @@ function InsightsPage() {
                   </ul>
                    {r.caution ? (
                      <p className="mt-3 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning">
-                       * {r.caution}
+                       {r.drop.injury ? "" : "* "}{r.caution}
                      </p>
                    ) : null}
                   <div className="mt-3 flex items-center justify-between gap-2 text-xs">
@@ -242,6 +242,49 @@ function InsightsPage() {
             </div>
           )}
         </section>
+
+        {/* Injured stashes */}
+        {(data?.stashes?.length ?? 0) > 0 ? (
+          <section className="space-y-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              <AlertTriangle className="h-4 w-4" /> Stash early — injured, but worth it
+            </h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              {(data?.stashes ?? []).map((s) => (
+                <div key={s.add.playerId} className="rounded-xl border border-border bg-card/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-wider text-primary">Stash</p>
+                      <p className="truncate font-semibold">{s.add.name}</p>
+                      <p className="text-xs text-muted-foreground">{s.add.team} · {s.add.position}</p>
+                    </div>
+                    {s.drop ? (
+                      <>
+                        <ArrowRight className="h-4 w-4 shrink-0 rotate-180 text-muted-foreground" />
+                        <div className="min-w-0 text-right">
+                          <p className="text-xs uppercase tracking-wider text-destructive">Drop</p>
+                          <p className="truncate font-semibold">{s.drop.name}</p>
+                          <p className="text-xs text-muted-foreground">{s.drop.team}</p>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                  <p className="mt-3 flex items-center gap-2">
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", s.need === "high" ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning")}>
+                      {s.need === "high" ? "Big need" : "Useful upgrade"}
+                    </span>
+                    <span className="font-display font-bold text-primary">+{s.gainPerGw.toFixed(1)} pts/GW once fit</span>
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">{s.reason}</p>
+                  <p className="mt-2 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning">
+                    {s.add.news || "Injured"}. May be a good long-term hold
+                    {s.add.injury?.returnDate ? ` — expected back ${s.add.injury.returnDate}.` : "; no return date yet."}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {/* Squad projections */}
         <section className="space-y-4">
@@ -308,6 +351,9 @@ function ProjectionTable({ players, events }: { players: InsightPlayer[]; events
                 {p.availability < 1 ? (
                   <p className="text-xs text-destructive">
                     {Math.round(p.availability * 100)}% to play{p.news ? ` — ${p.news}` : ""}
+                    {p.injury && (p.established || p.priorInjured || p.healthyTotal >= events.length * 3.5)
+                      ? ` · May be a good long-term hold${p.injury.returnDate ? `, expected back ${p.injury.returnDate}` : ""}`
+                      : ""}
                   </p>
                 ) : null}
               </td>
