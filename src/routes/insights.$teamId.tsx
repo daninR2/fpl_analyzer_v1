@@ -130,7 +130,8 @@ function InsightsPage() {
           )}
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Expected points use each player's xG, xA, minutes, clean-sheet odds, saves, bonus,
-            defensive contributions and availability, adjusted for how strong every upcoming opponent is.
+            defensive contributions and availability, adjusted for every club's strength and a
+            completed 2025/26 baseline.
           </p>
         </div>
 
