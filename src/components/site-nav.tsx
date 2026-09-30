@@ -1,11 +1,14 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Trophy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { clearStoredTeamId, useStoredTeamId } from "@/lib/team-id";
 
 export function SiteNav() {
-  const teamId = useStoredTeamId();
+  const stored = useStoredTeamId();
+  const pathname = useLocation({ select: (l) => l.pathname });
+  const fromPath = pathname.match(/^\/dashboard\/(\d+)/)?.[1] ?? null;
+  const teamId = fromPath ?? stored;
   const navigate = useNavigate();
 
   return (
