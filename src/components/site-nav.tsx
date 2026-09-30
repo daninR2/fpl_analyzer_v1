@@ -7,7 +7,7 @@ import { clearStoredTeamId, useStoredTeamId } from "@/lib/team-id";
 export function SiteNav() {
   const stored = useStoredTeamId();
   const pathname = useLocation({ select: (l) => l.pathname });
-  const fromPath = pathname.match(/^\/dashboard\/(\d+)/)?.[1] ?? null;
+  const fromPath = pathname.match(/^\/(?:dashboard|insights)\/(\d+)/)?.[1] ?? null;
   const teamId = fromPath ?? stored;
   const navigate = useNavigate();
 
