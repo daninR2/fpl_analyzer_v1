@@ -139,3 +139,52 @@ export type FreeAgentsPayload = {
   stale: boolean;
   fetchedAt: string;
 };
+
+export type InsightPlayer = {
+  playerId: number;
+  name: string;
+  team: string;
+  position: string;
+  positionId: number;
+  availability: number;
+  news: string;
+  form: number;
+  xg90: number;
+  xa90: number;
+  minutesShare: number;
+  byEvent: Record<number, number>;
+  fixtures: { event: number; opponent: string; home: boolean; difficulty: 1 | 2 | 3 | 4 | 5; xPts: number }[];
+  total: number;
+};
+
+export type MatchupSide = {
+  entryId: number;
+  teamName: string;
+  expected: number;
+  starters: InsightPlayer[];
+};
+
+export type Matchup = {
+  event: number;
+  me: MatchupSide;
+  opponent: MatchupSide | null;
+  winProbability: number | null;
+};
+
+export type Recommendation = {
+  add: InsightPlayer;
+  drop: InsightPlayer;
+  gain: number;
+  reasons: string[];
+};
+
+export type InsightsPayload = {
+  teamName: string;
+  leagueId: number;
+  events: number[];
+  squad: InsightPlayer[];
+  matchups: Matchup[];
+  recommendations: Recommendation[];
+  topFreeAgents: InsightPlayer[];
+  fetchedAt: string;
+};

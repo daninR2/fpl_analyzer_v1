@@ -7,7 +7,7 @@ import { clearStoredTeamId, useStoredTeamId } from "@/lib/team-id";
 export function SiteNav() {
   const stored = useStoredTeamId();
   const pathname = useLocation({ select: (l) => l.pathname });
-  const fromPath = pathname.match(/^\/dashboard\/(\d+)/)?.[1] ?? null;
+  const fromPath = pathname.match(/^\/(?:dashboard|insights)\/(\d+)/)?.[1] ?? null;
   const teamId = fromPath ?? stored;
   const navigate = useNavigate();
 
@@ -29,6 +29,15 @@ export function SiteNav() {
               className="rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               Dashboard
+            </Link>
+          ) : null}
+          {teamId ? (
+            <Link
+              to="/insights/$teamId"
+              params={{ teamId }}
+              className="rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Predictions
             </Link>
           ) : null}
           <Link
