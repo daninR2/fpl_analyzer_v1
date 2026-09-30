@@ -80,12 +80,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "FPL League Hub" },
       {
         name: "description",
-        content: "Unofficial Fantasy Premier League mini-league analytics from your public team ID.",
+        content: "Unofficial Draft Fantasy Premier League draft league analytics from your public team ID.",
       },
       { property: "og:title", content: "FPL League Hub" },
       {
         property: "og:description",
-        content: "Unofficial Fantasy Premier League mini-league analytics from your public team ID.",
+        content: "Unofficial Draft Fantasy Premier League draft league analytics from your public team ID.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
