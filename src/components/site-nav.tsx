@@ -41,7 +41,7 @@ export function SiteNav() {
               className="ml-2"
               onClick={() => {
                 clearStoredTeamId();
-                navigate({ to: "/", search: { change: true } });
+                navigate({ to: "/" });
               }}
             >
               Change Team ID
