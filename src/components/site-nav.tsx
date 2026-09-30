@@ -31,6 +31,15 @@ export function SiteNav() {
               Dashboard
             </Link>
           ) : null}
+          {teamId ? (
+            <Link
+              to="/insights/$teamId"
+              params={{ teamId }}
+              className="rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Predictions
+            </Link>
+          ) : null}
           <Link
             to="/about"
             className="rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
