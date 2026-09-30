@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import {
   Bar,
@@ -53,6 +53,24 @@ const chartTooltip = {
   labelStyle: { color: "var(--muted-foreground)" },
 };
 
+const LEAGUE_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-6)",
+  "var(--chart-7)",
+  "var(--chart-8)",
+];
+
+type LeagueMetric = "points" | "recordPoints" | "totalPoints";
+const METRICS: { key: LeagueMetric; label: string }[] = [
+  { key: "points", label: "Points per gameweek" },
+  { key: "recordPoints", label: "Record" },
+  { key: "totalPoints", label: "Total points" },
+];
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-card/60 p-4">
@@ -68,6 +86,7 @@ function Dashboard() {
   const queryClient = useQueryClient();
   const fetchManager = useServerFn(getManager);
   const fetchPicks = useServerFn(getPicks);
+  const [leagueMetric, setLeagueMetric] = useState<LeagueMetric>("points");
 
   useEffect(() => {
     if (Number.isInteger(numericId) && numericId > 0) storeTeamId(teamId);
@@ -114,6 +133,18 @@ function Dashboard() {
 
   const data = managerQuery.data;
   const history = data?.history ?? [];
+  const leagueChart = useMemo(() => {
+    const rows = new Map<number, Record<string, number | string>>();
+    for (const team of data?.leagueHistory ?? []) {
+      for (const point of team.history) {
+        const row = rows.get(point.event) ?? { event: point.event };
+        row[String(team.entryId)] = point[leagueMetric];
+        row[`${team.entryId}:record`] = point.record;
+        rows.set(point.event, row);
+      }
+    }
+    return [...rows.values()].sort((a, b) => Number(a["event"]) - Number(b["event"]));
+  }, [data?.leagueHistory, leagueMetric]);
   
   return (
     <div className="min-h-screen">
@@ -171,6 +202,74 @@ function Dashboard() {
                 </>
               )}
         </div>
+
+        {managerQuery.isLoading || (data?.leagueHistory.length ?? 0) > 0 ? (
+          <section className="rounded-xl border border-border bg-card/60 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  League comparison
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">Every team, gameweek by gameweek</p>
+              </div>
+              <div className="flex flex-wrap gap-1" aria-label="League chart metric">
+                {METRICS.map((metric) => (
+                  <Button
+                    key={metric.key}
+                    size="sm"
+                    variant={leagueMetric === metric.key ? "default" : "outline"}
+                    onClick={() => setLeagueMetric(metric.key)}
+                  >
+                    {metric.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-5 h-80">
+              {managerQuery.isLoading ? (
+                <Skeleton className="h-full w-full rounded-lg" />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={leagueChart} margin={{ top: 8, right: 12, left: -12, bottom: 8 }}>
+                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="event" stroke="var(--muted-foreground)" fontSize={11} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={11} allowDecimals={false} />
+                    <Tooltip
+                      {...chartTooltip}
+                      labelFormatter={(event) => `Gameweek ${event}`}
+                      formatter={(value, name, item) => {
+                        const team = data?.leagueHistory.find((entry) => String(entry.entryId) === String(item.dataKey));
+                        const record = item.payload?.[`${item.dataKey}:record`];
+                        return [leagueMetric === "recordPoints" ? `${value} pts · ${record} W-D-L` : value, team?.teamName ?? name];
+                      }}
+                    />
+                    {(data?.leagueHistory ?? []).map((team, index) => (
+                      <Line
+                        key={team.entryId}
+                        type="monotone"
+                        dataKey={String(team.entryId)}
+                        name={team.teamName}
+                        stroke={LEAGUE_COLORS[index % LEAGUE_COLORS.length]}
+                        strokeWidth={team.isCurrentTeam ? 3 : 2}
+                        strokeDasharray={team.isCurrentTeam ? undefined : index >= LEAGUE_COLORS.length ? "5 3" : undefined}
+                        dot={false}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+              {(data?.leagueHistory ?? []).map((team, index) => (
+                <span key={team.entryId} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="h-0.5 w-4" style={{ backgroundColor: LEAGUE_COLORS[index % LEAGUE_COLORS.length] }} />
+                  <span className={team.isCurrentTeam ? "font-semibold text-foreground" : undefined}>{team.teamName}</span>
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-border bg-card/60 p-5">

@@ -5,8 +5,11 @@
 // positional prior so low-minute players don't look like superstars, then
 // scaled by the attacking/defensive strength of each upcoming opponent.
 
+import priorSeason from "./prior-2025-26.json";
+
 export type RawElement = {
   id: number;
+  code: number;
   web_name: string;
   team: number;
   element_type: number;
@@ -64,6 +67,7 @@ export type PlayerProjection = {
   byEvent: Record<number, number>;
   fixtures: FixtureProjection[];
   total: number;
+  established: boolean;
 };
 
 const POS = ["", "GKP", "DEF", "MID", "FWD"];
@@ -99,7 +103,12 @@ export function availability(el: RawElement) {
 
 type TeamStrength = { attack: number; defence: number };
 
-function teamStrengths(elements: RawElement[], gamesPlayed: number) {
+type PriorPlayer = { minutes: number; points: number; xg: number; xa: number; xgc: number; cs: number };
+type PriorTeam = { xgPerGame: number; xgaPerGame: number; cleanSheets: number };
+const playerPriors = priorSeason.players as Record<string, PriorPlayer>;
+const teamPriors = priorSeason.teams as Record<string, PriorTeam>;
+
+function teamStrengths(elements: RawElement[], gamesPlayed: number, teamNames: Map<number, string>) {
   const xg = new Map<number, number>();
   const gkXgc = new Map<number, number>();
   const gkMins = new Map<number, number>();
@@ -118,13 +127,17 @@ function teamStrengths(elements: RawElement[], gamesPlayed: number) {
   }));
   const avgA = raw.reduce((s, r) => s + r.attack, 0) / Math.max(raw.length, 1) || 1.35;
   const avgD = raw.reduce((s, r) => s + r.defence, 0) / Math.max(raw.length, 1) || 1.35;
-  // Shrink toward league average (3 phantom average games) to tame early-season noise.
-  const w = gamesPlayed / (gamesPlayed + 3);
+  // The completed 2025/26 season supplies an eight-match prior. This prevents a
+  // handful of early results from treating proven defences like average teams.
+  const w = gamesPlayed / (gamesPlayed + 8);
   const map = new Map<number, TeamStrength>();
   for (const r of raw) {
+    const prior = teamPriors[teamNames.get(r.t) ?? ""];
+    const priorAttack = prior?.xgPerGame ?? avgA;
+    const priorDefence = prior?.xgaPerGame ?? avgD;
     map.set(r.t, {
-      attack: w * (r.attack || avgA) + (1 - w) * avgA,
-      defence: w * (r.defence || avgD) + (1 - w) * avgD,
+      attack: w * (r.attack || avgA) + (1 - w) * priorAttack,
+      defence: w * (r.defence || avgD) + (1 - w) * priorDefence,
     });
   }
   return { map, avgA, avgD };
@@ -139,7 +152,7 @@ export function projectPlayers(opts: {
 }): { players: Map<number, PlayerProjection>; teamDifficulty: Map<string, number> } {
   const { elements, fixtures, events, gamesPlayed } = opts;
   const teamName = new Map(opts.teams.map((t) => [t.id, t.short_name]));
-  const { map: strength, avgA, avgD } = teamStrengths(elements, gamesPlayed);
+  const { map: strength, avgA, avgD } = teamStrengths(elements, gamesPlayed, teamName);
   const gp = Math.max(gamesPlayed, 1);
 
   // Per-fixture team goal expectations
@@ -173,8 +186,12 @@ export function projectPlayers(opts: {
     const pos = e.element_type;
     const mins = e.minutes;
     const nineties = mins / 90;
-    const xg90 = (num(e.expected_goals) + XG_PRIOR[pos]! * 3) / (nineties + 3);
-    const xa90 = (num(e.expected_assists) + XA_PRIOR[pos]! * 3) / (nineties + 3);
+    const prior = playerPriors[String(e.code)];
+    const priorNineties = Math.min((prior?.minutes ?? 0) / 90, 8);
+    const priorXg90 = prior && prior.minutes > 0 ? (prior.xg / prior.minutes) * 90 : XG_PRIOR[pos]!;
+    const priorXa90 = prior && prior.minutes > 0 ? (prior.xa / prior.minutes) * 90 : XA_PRIOR[pos]!;
+    const xg90 = (num(e.expected_goals) + priorXg90 * priorNineties + XG_PRIOR[pos]! * 2) / (nineties + priorNineties + 2);
+    const xa90 = (num(e.expected_assists) + priorXa90 * priorNineties + XA_PRIOR[pos]! * 2) / (nineties + priorNineties + 2);
     const minutesShare = clamp(mins / (gp * 90), 0, 1);
     const play60 = clamp((minutesShare - 0.3) / 0.5, 0, 1);
     const avail = availability(e);
@@ -182,7 +199,9 @@ export function projectPlayers(opts: {
     const bonusPg = e.bonus / gp;
     const dc90 = nineties > 0 ? num(e.defensive_contribution) / nineties : 0;
     const yellowPg = e.yellow_cards / gp;
-    const ppg = num(e.points_per_game);
+    const currentPpg = num(e.points_per_game);
+    const priorPpg = prior && prior.minutes >= 450 ? prior.points / Math.max(prior.minutes / 90, 1) : currentPpg;
+    const ppg = nineties > 0 ? (currentPpg * nineties + priorPpg * priorNineties) / (nineties + priorNineties) : priorPpg;
     const own = strength.get(e.team);
 
     const fixturesOut: FixtureProjection[] = [];
@@ -240,6 +259,10 @@ export function projectPlayers(opts: {
       byEvent,
       fixtures: fixturesOut.sort((a, b) => a.event - b.event),
       total: round(Object.values(byEvent).reduce((s, v) => s + v, 0)),
+      established:
+        !!prior &&
+        prior.minutes >= 1_200 &&
+        prior.points >= ([0, 85, 90, 100, 95][pos] ?? 100),
     });
   }
   for (const [t, s] of strength) teamDifficulty.set(teamName.get(t) ?? "", round(s.attack - s.defence, 2));

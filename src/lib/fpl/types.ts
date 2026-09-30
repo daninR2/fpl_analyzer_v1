@@ -65,8 +65,24 @@ export type ManagerPayload = {
   manager: ManagerInfo;
   league: ManagerLeagueSummary | null;
   history: HistoryEntry[];
+  leagueHistory: LeagueHistoryTeam[];
   stale: boolean;
   fetchedAt: string;
+};
+
+export type LeagueHistoryPoint = {
+  event: number;
+  points: number;
+  totalPoints: number;
+  recordPoints: number;
+  record: string;
+};
+
+export type LeagueHistoryTeam = {
+  entryId: number;
+  teamName: string;
+  isCurrentTeam: boolean;
+  history: LeagueHistoryPoint[];
 };
 
 export type SquadPick = {
@@ -155,6 +171,7 @@ export type InsightPlayer = {
   byEvent: Record<number, number>;
   fixtures: { event: number; opponent: string; home: boolean; difficulty: 1 | 2 | 3 | 4 | 5; xPts: number }[];
   total: number;
+  established: boolean;
 };
 
 export type MatchupSide = {
@@ -176,6 +193,7 @@ export type Recommendation = {
   drop: InsightPlayer;
   gain: number;
   reasons: string[];
+  caution: string | null;
 };
 
 export type InsightsPayload = {
