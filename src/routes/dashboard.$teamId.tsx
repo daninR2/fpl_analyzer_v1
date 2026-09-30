@@ -235,7 +235,7 @@ function Dashboard() {
             <Link
               to="/league/$leagueId"
               params={{ leagueId: String(data.league.id) }}
-              search={{ team: teamId }}
+              search={{ team: numericId }}
               className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 p-4 transition-colors hover:border-primary/50"
             >
               <div className="min-w-0">

@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getFreeAgents, getLeague } from "@/lib/fpl.functions";
 import { cn } from "@/lib/utils";
 
-const searchSchema = z.object({ team: z.coerce.string().optional() });
+const searchSchema = z.object({ team: z.coerce.number().int().positive().optional().catch(undefined) });
 
 export const Route = createFileRoute("/league/$leagueId")({
   validateSearch: (search) => searchSchema.parse(search),
@@ -46,7 +46,7 @@ const POSITIONS = [
 function LeaguePage() {
   const { leagueId } = Route.useParams();
   const { team } = Route.useSearch();
-  const myTeam = team ? Number(team) : null;
+  const myTeam = team ?? null;
   const id = Number(leagueId);
   const valid = Number.isInteger(id) && id > 0;
   const queryClient = useQueryClient();
