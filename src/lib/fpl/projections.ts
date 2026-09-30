@@ -292,7 +292,7 @@ export function projectPlayers(opts: {
 
 /** Pulls a return date out of FPL news, e.g. "Knee injury - Expected back 25 Oct". */
 export function returnDate(news: string): string | null {
-  const m = news.match(/expected back\s+([^.,;]+)/i);
+  const m = news.match(/(?:expected back|until)\s+([^.,;]+)/i);
   return m?.[1]?.trim() ?? null;
 }
 
