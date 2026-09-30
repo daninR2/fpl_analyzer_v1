@@ -244,13 +244,13 @@ function InsightsPage() {
         </section>
 
         {/* Injured stashes */}
-        {data && data.stashes.length > 0 ? (
+        {(data?.stashes?.length ?? 0) > 0 ? (
           <section className="space-y-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               <AlertTriangle className="h-4 w-4" /> Stash early — injured, but worth it
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
-              {data.stashes.map((s) => (
+              {(data?.stashes ?? []).map((s) => (
                 <div key={s.add.playerId} className="rounded-xl border border-border bg-card/60 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
