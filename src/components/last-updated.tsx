@@ -18,10 +18,10 @@ export function LastUpdated({
   onRefresh,
   refreshing,
 }: {
-  fetchedAt?: string;
-  stale?: boolean;
+  fetchedAt?: string | undefined;
+  stale?: boolean | undefined;
   onRefresh: () => void;
-  refreshing?: boolean;
+  refreshing?: boolean | undefined;
 }) {
   const [, tick] = useState(0);
   useEffect(() => {
