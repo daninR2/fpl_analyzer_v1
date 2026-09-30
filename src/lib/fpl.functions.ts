@@ -1,8 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import type { RawElement, RawFixture } from "./fpl/projections";
 import type {
   Bootstrap,
+  InsightPlayer,
+  InsightsPayload,
+  Matchup,
+  MatchupSide,
+  Recommendation,
   FreeAgentsPayload,
   H2HMatch,
   HistoryEntry,
@@ -283,4 +289,168 @@ export const getFreeAgents = createServerFn({ method: "POST" })
       }))
       .sort((a, b) => b.totalPoints - a.totalPoints);
     return { players, stale: status.stale, fetchedAt: status.fetchedAt };
+  });
+
+export const getInsights = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => teamIdSchema.parse(input))
+  .handler(async ({ data: input }): Promise<InsightsPayload> => {
+    const { cached, fplFetch, TTL } = await import("./fpl/api.server");
+    const { projectPlayers, bestEleven, winProbability, round } = await import("./fpl/projections");
+    const { teamId } = input;
+
+    const bs = (await loadBootstrap()).data as unknown as Bootstrap & {
+      elements: RawElement[];
+      fixtures: Record<string, RawFixture[]>;
+    };
+    const entry = (
+      await cached<RawEntry>(`draft:entry:${teamId}`, TTL.manager, () =>
+        fplFetch<RawEntry>(`/entry/${teamId}/public`),
+      )
+    ).data.entry;
+    const leagueId = entry.league_set?.[0];
+    if (!leagueId) throw new Error("This team isn't in a draft league yet.");
+
+    const [leagueRes, statusRes] = await Promise.all([
+      loadLeague(leagueId),
+      cached<{ element_status: { element: number; owner: number | null }[] }>(
+        `draft:element-status:${leagueId}`,
+        TTL.manager,
+        () => fplFetch(`/league/${leagueId}/element-status`),
+      ),
+    ]);
+    const league = leagueRes.data;
+
+    const current = bs.events.current ?? 0;
+    const fixtures = Object.values(bs.fixtures ?? {}).flat();
+    const events = [...new Set(fixtures.map((f) => f.event))]
+      .filter((e) => e > current || (e === current && !bs.events.data.find((d) => d.id === e)?.finished))
+      .sort((a, b) => a - b)
+      .slice(0, 3);
+    if (events.length === 0) throw new Error("No upcoming fixtures are published yet.");
+
+    const finishedGames = bs.events.data.filter((e) => e.finished).length;
+    const { players } = projectPlayers({
+      elements: bs.elements,
+      teams: bs.teams,
+      fixtures,
+      events,
+      gamesPlayed: finishedGames,
+    });
+    const strip = (p: ReturnType<typeof players.get>): InsightPlayer => {
+      const { teamId: _t, totalPoints: _tp, ...rest } = p!;
+      return rest;
+    };
+
+    const squadOf = (entryId: number) =>
+      statusRes.data.element_status
+        .filter((s) => s.owner === entryId && players.has(s.element))
+        .map((s) => strip(players.get(s.element)));
+
+    // Lineup: use the manager's most recent picks when available; else best XI.
+    const lineupFor = async (entryId: number, ev: number) => {
+      const squad = squadOf(entryId);
+      let starters: InsightPlayer[] = [];
+      if (ev === events[0] && current > 0) {
+        try {
+          const picks = (
+            await cached<{ picks: { element: number; position: number }[] }>(
+              `draft:picks:${entryId}:${current}`,
+              TTL.picksLive,
+              () => fplFetch(`/entry/${entryId}/event/${current}`),
+            )
+          ).data.picks;
+          const ids = new Set(picks.filter((p) => p.position <= 11).map((p) => p.element));
+          starters = squad.filter((p) => ids.has(p.playerId));
+        } catch {
+          starters = [];
+        }
+      }
+      if (starters.length < 11) starters = bestEleven(squad as never, ev) as InsightPlayer[];
+      const expected = round(starters.reduce((s, p) => s + (p.byEvent[ev] ?? 0), 0));
+      return { starters: starters.sort((a, b) => a.positionId - b.positionId), expected };
+    };
+
+    const entriesById = new Map(league.league_entries.map((e) => [e.id, e]));
+    const myLeagueEntry = league.league_entries.find((e) => e.entry_id === teamId);
+    const matchups: Matchup[] = [];
+    for (const ev of events) {
+      const me = await lineupFor(teamId, ev);
+      const match = (league.matches ?? []).find(
+        (m) =>
+          m.event === ev &&
+          (m.league_entry_1 === myLeagueEntry?.id || m.league_entry_2 === myLeagueEntry?.id),
+      );
+      let opponent: MatchupSide | null = null;
+      if (match) {
+        const oppLe = entriesById.get(
+          match.league_entry_1 === myLeagueEntry?.id ? match.league_entry_2 : match.league_entry_1,
+        );
+        if (oppLe?.entry_id) {
+          const o = await lineupFor(oppLe.entry_id, ev);
+          opponent = { entryId: oppLe.entry_id, teamName: oppLe.entry_name, ...o };
+        }
+      }
+      matchups.push({
+        event: ev,
+        me: { entryId: teamId, teamName: entry.name, ...me },
+        opponent,
+        winProbability: opponent ? round(winProbability(me.expected, opponent.expected), 2) : null,
+      });
+    }
+
+    const squad = squadOf(teamId).sort((a, b) => a.positionId - b.positionId || b.total - a.total);
+    const owned = new Set(
+      statusRes.data.element_status.filter((s) => s.owner !== null).map((s) => s.element),
+    );
+    const freeAgents = [...players.values()]
+      .filter((p) => !owned.has(p.playerId) && p.availability > 0)
+      .map(strip)
+      .sort((a, b) => b.total - a.total);
+
+    // Greedy best swaps: same position (draft squads have fixed shape).
+    const candidates: Recommendation[] = [];
+    for (const drop of squad) {
+      for (const add of freeAgents.filter((f) => f.positionId === drop.positionId).slice(0, 15)) {
+        const gain = round(add.total - drop.total);
+        if (gain < 0.5) continue;
+        const reasons: string[] = [];
+        const avgDiff = (p: InsightPlayer) =>
+          p.fixtures.reduce((s, f) => s + f.difficulty, 0) / Math.max(p.fixtures.length, 1);
+        if (drop.availability < 1)
+          reasons.push(`${drop.name} is doubtful${drop.news ? ` (${drop.news})` : ""}`);
+        if (avgDiff(add) + 0.5 < avgDiff(drop))
+          reasons.push(`Easier fixtures: ${add.fixtures.map((f) => `${f.opponent}${f.home ? " (H)" : " (A)"}`).join(", ")}`);
+        const xgi = (p: InsightPlayer) => p.xg90 + p.xa90;
+        if (xgi(add) > xgi(drop) + 0.1)
+          reasons.push(`More attacking threat: ${xgi(add).toFixed(2)} xGI/90 vs ${xgi(drop).toFixed(2)}`);
+        if (add.form > drop.form + 1) reasons.push(`Better form: ${add.form.toFixed(1)} vs ${drop.form.toFixed(1)}`);
+        if (add.minutesShare > drop.minutesShare + 0.2)
+          reasons.push(`Plays more: ${Math.round(add.minutesShare * 100)}% of minutes vs ${Math.round(drop.minutesShare * 100)}%`);
+        if (add.fixtures.length > drop.fixtures.length) reasons.push("Has more fixtures in this window");
+        if (reasons.length === 0) reasons.push("Higher projected points over the next few gameweeks");
+        candidates.push({ add, drop, gain, reasons });
+      }
+    }
+    candidates.sort((a, b) => b.gain - a.gain);
+    const usedAdd = new Set<number>();
+    const usedDrop = new Set<number>();
+    const recommendations = candidates
+      .filter((c) => {
+        if (usedAdd.has(c.add.playerId) || usedDrop.has(c.drop.playerId)) return false;
+        usedAdd.add(c.add.playerId);
+        usedDrop.add(c.drop.playerId);
+        return true;
+      })
+      .slice(0, 6);
+
+    return {
+      teamName: entry.name,
+      leagueId,
+      events,
+      squad,
+      matchups,
+      recommendations,
+      topFreeAgents: freeAgents.slice(0, 20),
+      fetchedAt: leagueRes.fetchedAt,
+    };
   });
