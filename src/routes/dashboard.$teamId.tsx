@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   Line,
   LineChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -27,16 +26,16 @@ import { storeTeamId } from "@/lib/team-id";
 export const Route = createFileRoute("/dashboard/$teamId")({
   head: ({ params }) => ({
     meta: [
-      { title: `Team ${params.teamId} dashboard — FPL League Hub` },
+      { title: `Team ${params.teamId} dashboard — Draft FPL League Hub` },
       {
         name: "description",
         content:
-          "Gameweek points, overall rank history, mini-leagues and current squad for this Fantasy Premier League team.",
+          "Gameweek points, points history, draft league record and current squad for this Draft FPL team.",
       },
-      { property: "og:title", content: "FPL manager dashboard — FPL League Hub" },
+      { property: "og:title", content: "Draft FPL manager dashboard" },
       {
         property: "og:description",
-        content: "Rank history, points per gameweek, mini-leagues and squad for any FPL team.",
+        content: "Points history, head-to-head record and squad for any Draft FPL team.",
       },
     ],
   }),
@@ -81,7 +80,7 @@ function Dashboard() {
     retry: false,
   });
 
-  const gameweek = managerQuery.data?.manager.current_event ?? null;
+  const gameweek = managerQuery.data?.manager.currentEvent ?? null;
 
   const picksQuery = useQuery({
     queryKey: ["picks", numericId, gameweek],
@@ -115,8 +114,7 @@ function Dashboard() {
 
   const data = managerQuery.data;
   const history = data?.history ?? [];
-  const chipByEvent = new Map((data?.chips ?? []).map((c) => [c.event, c.name]));
-
+  
   return (
     <div className="min-h-screen">
       <SiteNav />
@@ -154,17 +152,19 @@ function Dashboard() {
             ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
             : (
                 <>
-                  <Stat label="Total points" value={String(data?.manager.summary_overall_points ?? 0)} />
+                  <Stat label="Total points" value={String(data?.manager.overall_points ?? 0)} />
                   <Stat
-                    label="Overall rank"
-                    value={data?.manager.summary_overall_rank?.toLocaleString() ?? "—"}
-                  />
-                  <Stat label="Gameweek points" value={String(data?.manager.summary_event_points ?? 0)} />
-                  <Stat
-                    label="Squad value"
+                    label="League position"
                     value={
-                      data?.manager.last_deadline_value
-                        ? `£${(data.manager.last_deadline_value / 10).toFixed(1)}m`
+                      data?.league?.rank ? `${data.league.rank} of ${data.league.entries}` : "—"
+                    }
+                  />
+                  <Stat label="Gameweek points" value={String(data?.manager.event_points ?? 0)} />
+                  <Stat
+                    label="Record (W-D-L)"
+                    value={
+                      data?.league
+                        ? `${data.league.won}-${data.league.drawn}-${data.league.lost}`
                         : "—"
                     }
                   />
@@ -175,7 +175,7 @@ function Dashboard() {
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-border bg-card/60 p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Overall rank over time
+              Total points over time
             </h2>
             <div className="mt-4 h-64">
               {managerQuery.isLoading ? (
@@ -185,17 +185,12 @@ function Dashboard() {
                   <LineChart data={history}>
                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="event" stroke="var(--muted-foreground)" fontSize={11} />
-                    <YAxis
-                      reversed
-                      stroke="var(--muted-foreground)"
-                      fontSize={11}
-                      tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
-                    />
-                    <Tooltip {...chartTooltip} formatter={(v: number) => v.toLocaleString()} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={11} />
+                    <Tooltip {...chartTooltip} />
                     <Line
                       type="monotone"
-                      dataKey="overall_rank"
-                      name="Overall rank"
+                      dataKey="total_points"
+                      name="Total points"
                       stroke="var(--chart-1)"
                       strokeWidth={2}
                       dot={false}
@@ -221,15 +216,6 @@ function Dashboard() {
                     <YAxis stroke="var(--muted-foreground)" fontSize={11} />
                     <Tooltip {...chartTooltip} />
                     <Bar dataKey="points" name="Points" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-                    {[...chipByEvent.entries()].map(([event, chip]) => (
-                      <ReferenceLine
-                        key={`${event}-${chip}`}
-                        x={event}
-                        stroke="var(--chart-3)"
-                        strokeDasharray="4 3"
-                        label={{ value: chip, fill: "var(--chart-3)", fontSize: 10, position: "top" }}
-                      />
-                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -239,34 +225,27 @@ function Dashboard() {
 
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Mini-leagues
+            Draft league
           </h2>
           {managerQuery.isLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
-            </div>
-          ) : (data?.leagues.length ?? 0) === 0 ? (
-            <p className="text-sm text-muted-foreground">This team isn't in any classic leagues yet.</p>
+            <Skeleton className="h-20 rounded-xl" />
+          ) : !data?.league ? (
+            <p className="text-sm text-muted-foreground">This team isn't in a draft league yet.</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {data!.leagues.map((league) => (
-                <Link
-                  key={league.id}
-                  to="/league/$leagueId"
-                  params={{ leagueId: String(league.id) }}
-                  search={{ team: teamId }}
-                  className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 p-4 transition-colors hover:border-primary/50"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{league.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      My rank: {league.entry_rank?.toLocaleString() ?? "—"}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              ))}
-            </div>
+            <Link
+              to="/league/$leagueId"
+              params={{ leagueId: String(data.league.id) }}
+              search={{ team: numericId }}
+              className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 p-4 transition-colors hover:border-primary/50"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium">{data.league.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Table, head-to-head results and free agents
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </Link>
           )}
         </section>
 
