@@ -355,7 +355,7 @@ export const getInsights = createServerFn({ method: "POST" })
     const { cached, fplFetch, TTL } = await import("./fpl/api.server");
     const { projectPlayers, bestEleven, winProbability, round } = await import("./fpl/projections");
     const { MODEL } = await import("./fpl/config");
-    const { loadPlayerHistory, mapWithConcurrency } = await import("./fpl/history.server");
+    const { loadPlayerHistory, mapWithConcurrency, loadFutureFixtures } = await import("./fpl/history.server");
     const value = await import("./fpl/value");
     const { teamId } = input;
 
@@ -382,7 +382,8 @@ export const getInsights = createServerFn({ method: "POST" })
     const league = leagueRes.data;
 
     const current = bs.events.current ?? 0;
-    const fixtures = Object.values(bs.fixtures ?? {}).flat();
+    const futureFixtures = await loadFutureFixtures(bs.elements);
+    const fixtures = [...new Map([...Object.values(bs.fixtures ?? {}).flat(), ...futureFixtures].map(f=>[f.id,f])).values()];
     const events = [...new Set(fixtures.map((f) => f.event))]
       .filter((e) => e > current || (e === current && !bs.events.data.find((d) => d.id === e)?.finished))
       .sort((a, b) => a - b)

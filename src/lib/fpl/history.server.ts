@@ -21,3 +21,14 @@ export async function mapWithConcurrency<T,R>(items:T[], fn:(item:T)=>Promise<R>
   for(let i=0;i<items.length;i+=MODEL.concurrency) result.push(...await Promise.all(items.slice(i,i+MODEL.concurrency).map(fn)));
   return result;
 }
+/** Draft bootstrap exposes only a short fixture window; summaries contain the full schedule. */
+export async function loadFutureFixtures(elements:{id:number;team:number}[]) {
+  const result=await cached<import('./projections').RawFixture[]>('draft:future-fixtures:v2',60*60,async()=>{
+    const representatives=[...new Map(elements.map(e=>[e.team,e.id])).values()];
+    const lists=await mapWithConcurrency(representatives,async id=>{
+      try {const summary=await fplFetch<{fixtures?:import('./projections').RawFixture[]}>(`/element-summary/${id}`,1);return summary.fixtures??[];}catch{return [];}
+    });
+    return [...new Map(lists.flat().filter(f=>f.event!==null).map(f=>[f.id,f])).values()];
+  });
+  return result.data;
+}

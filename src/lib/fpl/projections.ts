@@ -149,7 +149,7 @@ export function projectPlayers(opts:{elements:RawElement[];teams:{id:number;shor
  const blendedPpg=evidenceN>0?(ppg*evidenceN+priorPpg*priorN)/(evidenceN+priorN):priorPpg;
  const saves=rate(recent.saves90,e.saves)||(pos===1?2.5:0),dc=rate(recent.dc90,e.defensive_contribution),yellow=rate(recent.yellow90,e.yellow_cards),red=(num(e.red_cards)+MODEL.positionalPriorNineties*.01)/(nineties+MODEL.positionalPriorNineties);
  const redRate=hasRecent?(recent.red90*evidenceN+red*MODEL.minutesPriorGames)/(evidenceN+MODEL.minutesPriorGames):red;
- const byEvent:Record<number,number>={},variance:Record<number,number>={},healthy:Record<number,number>={},p60:Record<number,number>={},fixturesOut:FixtureProjection[]=[];
+ const byEvent:Record<number,number>={},variance:Record<number,number>={},healthy:Record<number,number>={},p60:Record<number,number>={},fixturesOut:FixtureProjection[]=[],healthySquares:Record<number,number>={};
  for(const ev of events){byEvent[ev]=0;variance[ev]=0;healthy[ev]=0;p60[ev]=minutes.p60*(av[ev]??1);}
  for(const fx of byTeam.get(e.team)??[]){const own=strength.get(e.team),ratio=own?.attack?fx.lamFor/own.attack:1,mins90=minutes.expectedMinutes/90;
  const muG=xg90*ratio*mins90,muA=xa90*ratio*mins90,pCS=Math.exp(-fx.lamAgainst)*minutes.p60,bonusMean=bonus*(pos>=3?Math.sqrt(clamp(ratio,.7,1.3)):1);
@@ -160,11 +160,12 @@ export function projectPlayers(opts:{elements:RawElement[];teams:{id:number;shor
  if(e.minutes>=180)mean=(1-MODEL.ppgBlend)*mean+MODEL.ppgBlend*blendedPpg*clamp(ratio,.8,1.2);
  mean=Math.max(0,mean);const a=av[fx.event]??1,points=mean*a;
  const v=fixtureVariance({muG,muA,goalPoints:goalPts,csProbability:pCS,csPoints:csPts,p60:minutes.p60,pb:minutes.pb,bonusMean,mean,availability:a});
+ healthySquares[fx.event]=(healthySquares[fx.event]??0)+mean*mean;
  byEvent[fx.event]=(byEvent[fx.event]??0)+points;healthy[fx.event]=(healthy[fx.event]??0)+mean;variance[fx.event]=(variance[fx.event]??0)+v;
  const diff=fx.lamFor-fx.lamAgainst,difficulty=diff>.8?1:diff>.25?2:diff>-.25?3:diff>-.8?4:5;
  fixturesOut.push({event:fx.event,opponent:names.get(fx.opp)??'?',home:fx.home,difficulty,xPts:round(points),sd:round(Math.sqrt(v))});}
  // Availability is shared across fixtures in a double GW, adding its covariance.
- for(const ev of events){const count=fixturesOut.filter(f=>f.event===ev).length;if(count>1){const a=av[ev]??1;const means=(byTeam.get(e.team)??[]).filter(f=>f.event===ev);if(means.length>1){const total=healthy[ev]??0;variance[ev]=(variance[ev]??0)+a*(1-a)*total*total*(1-1/count);}}}
+ for(const ev of events){const a=av[ev]??1;variance[ev]=(variance[ev]??0)+a*(1-a)*((healthy[ev]??0)**2-(healthySquares[ev]??0));}
  const discounted=(record:Record<number,number>,limit=events.length)=>events.slice(0,limit).reduce((s,ev,i)=>s+MODEL.discount**i*(record[ev]??0),0);
  players.set(e.id,{playerId:e.id,name:e.web_name,team:names.get(e.team)??'',teamId:e.team,position:POS[pos]??'',positionId:pos,availability:availability(e),news,form:num(e.form),totalPoints:e.total_points,xg90:round(xg90,2),xa90:round(xa90,2),minutesShare:round(minutes.expectedMinutes/90,2),byEvent,fixtures:fixturesOut,total:round(Object.values(byEvent).reduce((s,v)=>s+v,0)),healthyTotal:round(Object.values(healthy).reduce((s,v)=>s+v,0)),established:!!prior&&prior.minutes>=1200&&prior.points>=([0,85,90,100,95][pos]??100),isNew,priorInjured,injury,availabilityByEvent:av,varianceByEvent:variance,sdByEvent:Object.fromEntries(events.map(ev=>[ev,Math.sqrt(variance[ev]??0)])),p60ByEvent:p60,healthyByEvent:healthy,sd:Math.sqrt(Object.values(variance).reduce((s,v)=>s+v,0)),recentLuck:hasRecent?recent.luck:0,recentPpg:ppg,historySource:opts.historySources?.get(e.id)??'season',minutesStable:minutes.p60>=MODEL.stableMinutes,nowValue:discounted(byEvent,MODEL.nowHorizon),holdValue:discounted(byEvent),healthyHoldValue:discounted(healthy)});
  }
