@@ -342,6 +342,13 @@ export const getFreeAgents = createServerFn({ method: "POST" })
     return { players, stale: status.stale, fetchedAt: status.fetchedAt };
   });
 
+export const getPlayerHistory = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ playerId: idSchema }).parse(input))
+  .handler(async ({ data }) => {
+    const { loadPlayerHistory } = await import("./fpl/history.server");
+    return loadPlayerHistory(data.playerId);
+  });
+
 export const getInsights = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => teamIdSchema.parse(input))
   .handler(async ({ data: input }): Promise<InsightsPayload> => {
