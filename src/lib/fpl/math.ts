@@ -8,7 +8,7 @@ export function normalCdf(z:number){if(!Number.isFinite(z))return z>0?1:0;const 
 export type Deadline = {id:number;deadline_time:string};
 /** Infer a year relative to the first projected deadline, never today's machine clock. */
 export function returnGameweek(text:string|null,events:Deadline[]):number|null {
- if(!text || !events.length)return null;
+ if(!text || !events.length || !(/\d/.test(text) && /[A-Za-z]/.test(text) || /^\d{4}-\d{2}-\d{2}/.test(text)))return null;
  const first=events[0];if(!first)return null;
  const anchor=new Date(first.deadline_time);
  let date:Date;
