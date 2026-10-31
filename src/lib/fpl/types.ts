@@ -176,6 +176,25 @@ export type InsightPlayer = {
   isNew: boolean;
   priorInjured: boolean;
   injury: { returnDate: string | null } | null;
+  availabilityByEvent?: Record<number, number>;
+  varianceByEvent?: Record<number, number>;
+  sdByEvent?: Record<number, number>;
+  p60ByEvent?: Record<number, number>;
+  healthyByEvent?: Record<number, number>;
+  sd?: number;
+  recentLuck?: number;
+  recentPpg?: number;
+  historySource?: string;
+  minutesStable?: boolean;
+  nowValue?: number;
+  holdValue?: number;
+  healthyHoldValue?: number;
+  vorp?: number;
+  healthyVorp?: number;
+  holdVerdict?: string;
+  holdReason?: string;
+  buyLow?: boolean;
+  contenders?: number;
 };
 
 export type MatchupSide = {
@@ -183,6 +202,7 @@ export type MatchupSide = {
   teamName: string;
   expected: number;
   starters: InsightPlayer[];
+  sd?: number;
 };
 
 export type Matchup = {
@@ -198,6 +218,8 @@ export type Recommendation = {
   gain: number;
   reasons: string[];
   caution: string | null;
+  confidence?: number;
+  winProbabilityDeltas?: { event: number; delta: number }[];
 };
 
 export type Stash = {
@@ -211,6 +233,11 @@ export type Stash = {
 
 export type InsightsPayload = {
   stashes: Stash[];
+  holdEvents?: number[];
+  longTermRecommendations?: Recommendation[];
+  trades?: TradeIdea[];
+  rivalBuyLows?: { teamName: string; player: InsightPlayer }[];
+  dataCoverage?: { official: number; snapshots: number; season: number };
   teamName: string;
   leagueId: number;
   events: number[];
@@ -220,3 +247,5 @@ export type InsightsPayload = {
   topFreeAgents: InsightPlayer[];
   fetchedAt: string;
 };
+
+export type TradeIdea = { rivalEntryId: number; rivalTeamName: string; give: InsightPlayer; receive: InsightPlayer; myGain: number; theirGain: number };
