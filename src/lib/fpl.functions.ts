@@ -342,14 +342,24 @@ export const getFreeAgents = createServerFn({ method: "POST" })
     return { players, stale: status.stale, fetchedAt: status.fetchedAt };
   });
 
+export const getPlayerHistory = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ playerId: idSchema }).parse(input))
+  .handler(async ({ data }) => {
+    const { loadPlayerHistory } = await import("./fpl/history.server");
+    return loadPlayerHistory(data.playerId);
+  });
+
 export const getInsights = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => teamIdSchema.parse(input))
   .handler(async ({ data: input }): Promise<InsightsPayload> => {
     const { cached, fplFetch, TTL } = await import("./fpl/api.server");
     const { projectPlayers, bestEleven, winProbability, round } = await import("./fpl/projections");
+    const { MODEL } = await import("./fpl/config");
+    const { loadPlayerHistory, mapWithConcurrency, loadFutureFixtures } = await import("./fpl/history.server");
+    const value = await import("./fpl/value");
     const { teamId } = input;
 
-    const bs = (await loadBootstrap()).data as unknown as Bootstrap & {
+    const bs = (await loadBootstrap()).data as unknown as Omit<Bootstrap, "elements"> & {
       elements: RawElement[];
       fixtures: Record<string, RawFixture[]>;
     };
@@ -372,20 +382,25 @@ export const getInsights = createServerFn({ method: "POST" })
     const league = leagueRes.data;
 
     const current = bs.events.current ?? 0;
-    const fixtures = Object.values(bs.fixtures ?? {}).flat();
+    const futureFixtures = await loadFutureFixtures(bs.elements);
+    const fixtures = [...new Map([...Object.values(bs.fixtures ?? {}).flat(), ...futureFixtures].map(f=>[f.id,f])).values()];
     const events = [...new Set(fixtures.map((f) => f.event))]
       .filter((e) => e > current || (e === current && !bs.events.data.find((d) => d.id === e)?.finished))
       .sort((a, b) => a - b)
-      .slice(0, 3);
+      .slice(0, MODEL.holdHorizon);
     if (events.length === 0) throw new Error("No upcoming fixtures are published yet.");
 
+    const holdEvents = events;
+    const nowEvents = events.slice(0, MODEL.nowHorizon);
     const finishedGames = bs.events.data.filter((e) => e.finished).length;
+    const ownedIds = new Set(statusRes.data.element_status.filter(s => s.owner !== null).map(s => s.element));
+    const relevant = [...new Set([...ownedIds, ...bs.elements.filter(e => !ownedIds.has(e.id)).sort((a,b)=>b.minutes-a.minutes).slice(0,MODEL.freeAgentHistoryLimit).map(e=>e.id)])];
+    const histories = await mapWithConcurrency(relevant, async playerId => ({playerId,...await loadPlayerHistory(playerId)}));
     const { players } = projectPlayers({
-      elements: bs.elements,
-      teams: bs.teams,
-      fixtures,
-      events,
-      gamesPlayed: finishedGames,
+      elements: bs.elements, teams: bs.teams, fixtures, events: holdEvents,
+      gamesPlayed: finishedGames, deadlines: bs.events.data,
+      histories: new Map(histories.map(h=>[h.playerId,h.history])),
+      historySources: new Map(histories.map(h=>[h.playerId,h.source])),
     });
     const strip = (p: ReturnType<typeof players.get>): InsightPlayer => {
       if (!p) throw new Error("Player projection unavailable.");
@@ -419,13 +434,13 @@ export const getInsights = createServerFn({ method: "POST" })
       }
       if (starters.length < 11) starters = bestEleven(squad as never, ev) as InsightPlayer[];
       const expected = round(starters.reduce((s, p) => s + (p.byEvent[ev] ?? 0), 0));
-      return { starters: starters.sort((a, b) => a.positionId - b.positionId), expected };
+      return { starters: starters.sort((a, b) => a.positionId - b.positionId), expected, sd: value.teamSd(starters, ev) };
     };
 
     const entriesById = new Map(league.league_entries.map((e) => [e.id, e]));
     const myLeagueEntry = league.league_entries.find((e) => e.entry_id === teamId);
     const matchups: Matchup[] = [];
-    for (const ev of events) {
+    for (const ev of nowEvents) {
       const me = await lineupFor(teamId, ev);
       const match = (league.matches ?? []).find(
         (m) =>
@@ -446,7 +461,7 @@ export const getInsights = createServerFn({ method: "POST" })
         event: ev,
         me: { entryId: teamId, teamName: entry.name, ...me },
         opponent,
-        winProbability: opponent ? round(winProbability(me.expected, opponent.expected), 2) : null,
+        winProbability: opponent ? round(winProbability(me.expected, opponent.expected, me.sd, opponent.sd), 2) : null,
       });
     }
 
@@ -455,59 +470,25 @@ export const getInsights = createServerFn({ method: "POST" })
       statusRes.data.element_status.filter((s) => s.owner !== null).map((s) => s.element),
     );
     const freeAgents = [...players.values()]
-      .filter((p) => !owned.has(p.playerId) && p.availability > 0)
+      .filter((p) => !owned.has(p.playerId) && !["u", "n"].includes(bs.elements.find(e=>e.id===p.playerId)?.status ?? "u"))
       .map(strip)
       .sort((a, b) => b.total - a.total);
 
-    const add_threshold = (p: InsightPlayer) => events.length * ([0, 3, 3, 3.5, 3.5][p.positionId] ?? 3.5);
-
-    // Greedy best swaps: same position (draft squads have fixed shape).
-    const candidates: Recommendation[] = [];
-    for (const drop of squad) {
-      // Early-season model swings should not create sell calls on proven assets.
-      if (finishedGames <= 8 && (drop.established || drop.priorInjured) && drop.availability >= 0.25) continue;
-      // New arrivals get ~10 gameweeks to bed in before we suggest dropping them.
-      if (drop.isNew && finishedGames < 10) continue;
-      // Injured quality players are long-term holds, not drops.
-      if (drop.injury && (drop.established || drop.priorInjured) && drop.healthyTotal >= add_threshold(drop)) continue;
-      for (const add of freeAgents.filter((f) => f.positionId === drop.positionId).slice(0, 15)) {
-        const gain = round(add.total - drop.total);
-        if (gain < 0.5) continue;
-        const reasons: string[] = [];
-        const avgDiff = (p: InsightPlayer) =>
-          p.fixtures.reduce((s, f) => s + f.difficulty, 0) / Math.max(p.fixtures.length, 1);
-        if (drop.availability < 1)
-          reasons.push(`${drop.name} is doubtful${drop.news ? ` (${drop.news})` : ""}`);
-        if (avgDiff(add) + 0.5 < avgDiff(drop))
-          reasons.push(`Easier fixtures: ${add.fixtures.map((f) => `${f.opponent}${f.home ? " (H)" : " (A)"}`).join(", ")}`);
-        const xgi = (p: InsightPlayer) => p.xg90 + p.xa90;
-        if (xgi(add) > xgi(drop) + 0.1)
-          reasons.push(`More attacking threat: ${xgi(add).toFixed(2)} xGI/90 vs ${xgi(drop).toFixed(2)}`);
-        if (add.form > drop.form + 1) reasons.push(`Better form: ${add.form.toFixed(1)} vs ${drop.form.toFixed(1)}`);
-        if (add.minutesShare > drop.minutesShare + 0.2)
-          reasons.push(`Plays more: ${Math.round(add.minutesShare * 100)}% of minutes vs ${Math.round(drop.minutesShare * 100)}%`);
-        if (add.fixtures.length > drop.fixtures.length) reasons.push("Has more fixtures in this window");
-        if (reasons.length === 0) reasons.push("Higher projected points over the next few gameweeks");
-        const caution = drop.injury
-          ? `${drop.name} is injured${drop.injury.returnDate ? ` (expected back ${drop.injury.returnDate})` : ""} and may be a good long-term hold.`
-          : drop.established
-          ? `${drop.name} has a strong 2025/26 track record, so this may not be a good long-term move.`
-          : null;
-        candidates.push({ add, drop, gain, reasons, caution });
-      }
-    }
-    candidates.sort((a, b) => b.gain - a.gain);
-    const usedAdd = new Set<number>();
-    const usedDrop = new Set<number>();
-    const recommendations = candidates
-      .filter((c) => {
-        if (usedAdd.has(c.add.playerId) || usedDrop.has(c.drop.playerId)) return false;
-        usedAdd.add(c.add.playerId);
-        usedDrop.add(c.drop.playerId);
-        return true;
-      })
-      .slice(0, 6);
-
+    const all = [...players.values()].map(strip);
+    value.annotatePlayers(all, freeAgents, holdEvents, finishedGames);
+    const annotations = new Map(all.map(p=>[p.playerId,p]));
+    for (const p of [...squad,...freeAgents]) Object.assign(p, annotations.get(p.playerId));
+    const rivals = league.league_entries.flatMap(e=>e.entry_id && e.entry_id !== teamId ? [{entryId:e.entry_id,teamName:e.entry_name,squad:squadOf(e.entry_id).map(p=>annotations.get(p.playerId)??p)}] : []);
+    const recommendations = value.recommendations(squad,freeAgents,nowEvents,finishedGames);
+    const longTermRecommendations = value.recommendations(squad,freeAgents,holdEvents,finishedGames);
+    for(const r of [...recommendations,...longTermRecommendations]) r.winProbabilityDeltas = value.matchupDelta(squad,r.drop,r.add,matchups);
+    for(const p of squad) if([...recommendations,...longTermRecommendations].some(r=>r.drop.playerId===p.playerId)) {p.holdVerdict='DROP CANDIDATE';p.holdReason='An available same-position swap clears the gain and confidence gates.';}
+    for(const add of freeAgents) add.contenders=value.countContenders(add,rivals,nowEvents,finishedGames);
+    const priority = (p:InsightPlayer) => Math.max(0,...squad.filter(d=>d.positionId===p.positionId && !value.protectedDrop(d,finishedGames,nowEvents.length)).map(d=>value.swapGain(squad,d,p,nowEvents))) * (1+MODEL.contenderBoost*(p.contenders??0));
+    freeAgents.sort((a,b)=>priority(b)-priority(a)||(b.vorp??0)-(a.vorp??0));
+    recommendations.sort((a,b)=>b.gain*(1+MODEL.contenderBoost*(b.add.contenders??0))-a.gain*(1+MODEL.contenderBoost*(a.add.contenders??0)));
+    const trades=value.findTrades(squad,rivals,holdEvents,finishedGames);
+    const add_threshold = (p:InsightPlayer) => holdEvents.length * ([0,3,3,3.5,3.5][p.positionId]??3.5);
     // Injured free agents worth stashing early before a rival snipes them.
     // Scored by how much they'd beat the squad's current starter in that slot.
     const STARTERS = [0, 1, 4, 4, 2];
@@ -547,8 +528,13 @@ export const getInsights = createServerFn({ method: "POST" })
       stashes,
       teamName: entry.name,
       leagueId,
-      events,
-      squad,
+      events: nowEvents,
+      holdEvents,
+      longTermRecommendations,
+      trades,
+      rivalBuyLows: rivals.flatMap(r=>r.squad.filter(p=>p.buyLow).map(player=>({teamName:r.teamName,player}))),
+      dataCoverage: {official:histories.filter(h=>h.source==='official').length,snapshots:histories.filter(h=>h.source==='snapshots').length,season:histories.filter(h=>h.source==='season').length},
+      squad: squad.sort((a,b)=>(b.vorp??0)-(a.vorp??0)),
       matchups,
       recommendations,
       topFreeAgents: freeAgents.slice(0, 20),

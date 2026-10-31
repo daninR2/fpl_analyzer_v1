@@ -44,7 +44,7 @@ function FixtureChips({ p }: { p: InsightPlayer }) {
   if (p.fixtures.length === 0) return <span className="text-xs text-muted-foreground">No fixture</span>;
   return (
     <div className="flex flex-wrap gap-1">
-      {p.fixtures.map((f, i) => (
+      {p.fixtures.slice(0, 10).map((f, i) => (
         <span
           key={i}
           title={`GW${f.event}: ${f.xPts} xPts`}
@@ -94,7 +94,10 @@ function InsightsPage() {
     retry: false,
   });
   const [tab, setTab] = useState(0);
+  const [horizon, setHorizon] = useState<'now' | 'hold'>('now');
   const data = q.data;
+  const recommendations = horizon === 'hold' ? data?.longTermRecommendations ?? data?.recommendations : data?.recommendations;
+  const displayEvents = horizon === 'hold' ? data?.holdEvents ?? data?.events ?? [] : data?.events ?? [];
   const matchup = data?.matchups[tab];
 
   if (q.isError) {
@@ -153,17 +156,17 @@ function InsightsPage() {
             <Skeleton className="h-96 rounded-xl" />
           ) : (
             <div className="rounded-xl border border-border bg-card/60 p-5">
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
                 <div>
                   <p className="text-sm text-muted-foreground">You</p>
                   <p className="truncate text-lg font-semibold">{matchup.me.teamName}</p>
-                  <p className="font-display text-4xl font-bold text-primary">{matchup.me.expected.toFixed(1)}</p>
+                  <p className="font-display text-4xl font-bold text-primary">{matchup.me.expected.toFixed(1)}</p><p className="text-xs text-muted-foreground">±{matchup.me.sd?.toFixed(1) ?? '—'} points</p>
                 </div>
                 <span className="text-sm text-muted-foreground">vs</span>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Opponent</p>
                   <p className="truncate text-lg font-semibold">{matchup.opponent?.teamName ?? "No match"}</p>
-                  <p className="font-display text-4xl font-bold">{matchup.opponent?.expected.toFixed(1) ?? "—"}</p>
+                  <p className="font-display text-4xl font-bold">{matchup.opponent?.expected.toFixed(1) ?? "—"}</p><p className="text-xs text-muted-foreground">±{matchup.opponent?.sd?.toFixed(1) ?? '—'} points</p>
                 </div>
               </div>
               {matchup.winProbability !== null ? (
@@ -191,20 +194,24 @@ function InsightsPage() {
 
         {/* Recommendations */}
         <section className="space-y-4">
-          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            <TrendingUp className="h-4 w-4" /> Recommended pickups
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground"><TrendingUp className="h-4 w-4" /> Recommended pickups</h2>
+            <div className="flex gap-1" role="group" aria-label="Projection horizon">
+              <Button size="sm" variant={horizon === 'now' ? 'default' : 'outline'} onClick={() => setHorizon('now')}>Now</Button>
+              <Button size="sm" variant={horizon === 'hold' ? 'default' : 'outline'} onClick={() => setHorizon('hold')}>Long-term</Button>
+            </div>
+          </div>
           {q.isLoading ? (
             <div className="grid gap-3 md:grid-cols-2">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
             </div>
-          ) : (data?.recommendations.length ?? 0) === 0 ? (
+          ) : (recommendations?.length ?? 0) === 0 ? (
             <p className="rounded-xl border border-border bg-card/60 p-6 text-sm text-muted-foreground">
-              Your squad already beats every available free agent. Nice.
+              No swaps clear the gain, confidence and player-protection gates.
             </p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
-              {data!.recommendations.map((r) => (
+              {(recommendations ?? []).map((r) => (
                 <div key={`${r.add.playerId}-${r.drop.playerId}`} className="rounded-xl border border-border bg-card/60 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -223,7 +230,12 @@ function InsightsPage() {
                       </p>
                     </div>
                   </div>
-                  <p className="mt-3 font-display text-lg font-bold text-primary">+{r.gain.toFixed(1)} expected points</p>
+                  <p className="mt-3 font-display text-lg font-bold text-primary">+{r.gain.toFixed(1)} squad value</p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {r.confidence !== undefined ? <span className="rounded bg-primary/15 px-2 py-1 text-primary">{Math.round(r.confidence * 100)}% add outscores drop</span> : null}
+                    {(r.add.contenders ?? 0) > 0 ? <span className="rounded bg-warning/15 px-2 py-1 text-warning">{r.add.contenders} rivals likely to claim</span> : null}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">{r.winProbabilityDeltas?.map(d => <span key={d.event}>GW{d.event}: {d.delta >= 0 ? '+' : ''}{(d.delta * 100).toFixed(1)}% win chance</span>)}</div>
                   <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                     {r.reasons.map((reason) => (
                       <li key={reason}>• {reason}</li>
@@ -286,6 +298,15 @@ function InsightsPage() {
           </section>
         ) : null}
 
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Trade ideas</h2>
+          {(data?.trades?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No mutually beneficial same-position trades found.</p> : <div className="grid gap-3 md:grid-cols-2">{data?.trades?.map(t => <div key={`${t.give.playerId}-${t.receive.playerId}`} className="rounded-lg border border-border bg-card/60 p-4">
+            <p className="text-xs text-muted-foreground">{t.rivalTeamName}</p><p className="mt-2 font-semibold">{t.give.name} → {t.receive.name}</p>
+            <p className="mt-2 text-sm text-primary">You +{t.myGain.toFixed(1)} · Them +{t.theirGain.toFixed(1)}</p>
+            {t.receive.buyLow ? <span className="text-xs text-warning">BUY-LOW</span> : null}
+          </div>)}</div>}
+        </section>
+        {(data?.rivalBuyLows?.length ?? 0) > 0 ? <section className="space-y-3"><h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Rival buy-low watchlist</h2><div className="flex flex-wrap gap-3">{data?.rivalBuyLows?.slice(0,10).map(r=><span key={r.player.playerId} className="text-sm"><span className="text-warning">BUY-LOW</span> {r.player.name} <span className="text-muted-foreground">· {r.teamName}</span></span>)}</div></section> : null}
         {/* Squad projections */}
         <section className="space-y-4">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -294,7 +315,7 @@ function InsightsPage() {
           {q.isLoading ? (
             <Skeleton className="h-96 rounded-xl" />
           ) : (
-            <ProjectionTable players={data!.squad} events={data!.events} />
+            <ProjectionTable players={(data?.squad ?? [])} events={displayEvents} horizon={horizon} />
           )}
         </section>
 
@@ -305,7 +326,7 @@ function InsightsPage() {
           {q.isLoading ? (
             <Skeleton className="h-96 rounded-xl" />
           ) : (
-            <ProjectionTable players={data!.topFreeAgents} events={data!.events} />
+            <ProjectionTable players={(data?.topFreeAgents ?? [])} events={displayEvents} horizon={horizon} />
           )}
           {data ? (
             <Link
@@ -323,7 +344,7 @@ function InsightsPage() {
   );
 }
 
-function ProjectionTable({ players, events }: { players: InsightPlayer[]; events: number[] }) {
+function ProjectionTable({ players, events, horizon }: { players: InsightPlayer[]; events: number[]; horizon: "now" | "hold" }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card/60">
       <table className="w-full text-sm">
@@ -337,7 +358,8 @@ function ProjectionTable({ players, events }: { players: InsightPlayer[]; events
             {events.map((e) => (
               <th key={e} className="p-3 text-right">GW{e}</th>
             ))}
-            <th className="p-3 text-right">Total</th>
+            <th className="p-3 text-right">{horizon === 'hold' ? 'Hold value' : 'Now value'}</th>
+            <th className="p-3 text-right">VORP</th>
           </tr>
         </thead>
         <tbody>
@@ -348,6 +370,12 @@ function ProjectionTable({ players, events }: { players: InsightPlayer[]; events
                 <span className="text-xs text-muted-foreground">
                   {p.team} · {p.position}
                 </span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {p.holdVerdict ? <span title={p.holdReason} className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{p.holdVerdict}</span> : null}
+                  {p.buyLow ? <span className="text-[10px] text-warning">BUY-LOW</span> : null}
+                  {(p.contenders ?? 0) > 0 ? <span className="text-[10px] text-warning">{p.contenders} rivals likely to claim</span> : null}
+                </div>
+                {p.holdReason ? <p className="mt-1 max-w-64 text-xs text-muted-foreground">{p.holdReason}</p> : null}
                 {p.availability < 1 ? (
                   <p className="text-xs text-destructive">
                     {Math.round(p.availability * 100)}% to play{p.news ? ` — ${p.news}` : ""}
@@ -362,9 +390,10 @@ function ProjectionTable({ players, events }: { players: InsightPlayer[]; events
               <td className="p-3 text-right tabular-nums">{p.xa90.toFixed(2)}</td>
               <td className="p-3 text-right tabular-nums">{Math.round(p.minutesShare * 100)}%</td>
               {events.map((e) => (
-                <td key={e} className="p-3 text-right tabular-nums">{(p.byEvent[e] ?? 0).toFixed(1)}</td>
+                <td key={e} className="p-3 text-right tabular-nums"><span title={`±${(p.sdByEvent?.[e] ?? 0).toFixed(1)} points · ${Math.round((p.availabilityByEvent?.[e] ?? p.availability) * 100)}% available`}>{(p.byEvent[e] ?? 0).toFixed(1)}</span></td>
               ))}
-              <td className="p-3 text-right font-display font-bold text-primary">{p.total.toFixed(1)}</td>
+              <td className="p-3 text-right font-display font-bold text-primary">{(horizon === 'hold' ? p.holdValue ?? p.total : p.nowValue ?? p.total).toFixed(1)}</td>
+              <td className="p-3 text-right tabular-nums">{p.vorp?.toFixed(1) ?? '—'}</td>
             </tr>
           ))}
         </tbody>

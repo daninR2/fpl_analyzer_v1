@@ -16,6 +16,8 @@ export const Route = createFileRoute("/about")({
         property: "og:description",
         content: "An unofficial Draft Fantasy Premier League analytics tool built on public FPL data.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: About,

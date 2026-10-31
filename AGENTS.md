@@ -10,3 +10,8 @@
 <!-- LOVABLE:END -->
 
 - Prediction priors use the bundled completed 2025/26 FPL snapshot, keyed by stable player code and club abbreviation, so early-season projections remain reproducible and do not depend on fragile third-party requests.
+
+- Keep projection math pure and covered by Vitest under src/lib/fpl; MODEL in config.ts owns tunable settings so changes are reviewable.
+- Use additive optional projection fields; preserve existing public API types to avoid breaking older views.
+- Fetch official Draft player histories through a six-slot cache-backed server helper; snapshot fallback uses only consecutive cumulative totals.
+- Prediction tracking runs only behind managed cron authentication, records before kickoff without overwriting, and never fabricates backtests.

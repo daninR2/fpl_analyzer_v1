@@ -41,7 +41,20 @@ A web app for Fantasy Premier League managers that turns live FPL data into poin
 
 ## How It Works
 
-Projection priors come from a bundled snapshot of the completed 2025/26 FPL season, keyed by stable player code and club abbreviation. This keeps early-season projections reproducible and avoids depending on fragile third-party requests. Live gameweek data comes from the public FPL API.
+Projection priors come from a bundled snapshot of the completed 2025/26 FPL season, keyed by stable player code and club abbreviation. This keeps early-season projections reproducible and avoids depending on fragile third-party requests. Live gameweek data comes from the official Draft FPL API. No Reddit or scraping is used.
+
+### Model v2
+- Relevant squad players and the top 150 free agents by minutes use six-hour cached player history, fetched with at most six concurrent requests. Missing/incomplete history falls back to consecutive daily cumulative snapshots, then season data. First snapshots and nonconsecutive gaps are never treated as one gameweek.
+- Recent six-gameweek evidence decays by `0.85^age`. Playing-time probabilities shrink toward three season games; goals and assists retain positional and completed-2025/26 priors. Prior injury inference and ten-gameweek new-arrival protection remain in place.
+- Per-fixture scoring includes penalty-taker floors, exact Poisson goals-conceded expectation (closed form including the tail), clean sheets, saves, yellow/red cards, bonus and defensive contributions. PPG blend is 10%. Return news maps to gameweek deadlines with a staged availability ramp.
+- Independent scoring components produce variance and team SD, with a shared-availability adjustment for double gameweeks. Correlated club outcomes are not modeled, so win chances and confidence are approximations, not calibrated guarantees.
+- Now value covers three gameweeks; hold value covers up to ten published fixture gameweeks, discounted by `0.92^k`. Exact legal-formation enumeration picks the best XI. Bench value is weighted by positional auto-sub triggers and 0.5; this is an approximation of full FPL automatic substitutions.
+- Same-position swaps compare full squad value, not raw player totals, and require positional gain thresholds plus at least 55% modeled confidence. VORP uses the second-best free agent by discounted hold value. Hold verdicts, buy-low/sell-high evidence, contested-target priority and mutually positive trade ideas use the same value layer. Trade suggestions do not guarantee acceptance.
+- Forward-only accuracy logs predictions before the first kickoff when a gameweek is first observed current. Daily tracking scores finished gameweeks from official player histories; the `/model` page reports MAE, bias, positional minutes calibration and last-five/PPG baseline errors. Missed kickoff windows are deliberately not backfilled. Daily observation may miss a pre-kickoff window.
+- Model constants are documented in `src/lib/fpl/config.ts`; run `bunx vitest run src/lib/fpl/*.test.ts` for unit tests.
+
+### Scheduled tracking
+A single managed daily callback at 06:00 UTC captures cumulative snapshots, logs eligible pre-kickoff projections and scores finished gameweeks. Low-frequency managed callbacks may fire within about 30 seconds of the minute. Scheduled HTTP delivery requires a published app; ongoing collection and future accuracy results begin only once delivery is available.
 
 ## Getting Started
 

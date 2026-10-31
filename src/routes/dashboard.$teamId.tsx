@@ -37,6 +37,8 @@ export const Route = createFileRoute("/dashboard/$teamId")({
         property: "og:description",
         content: "Points history, head-to-head record and squad for any Draft FPL team.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Dashboard,
