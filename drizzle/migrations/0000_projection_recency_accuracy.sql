@@ -1,0 +1,10 @@
+CREATE TABLE public.player_snapshots (player_id integer NOT NULL, gw integer NOT NULL, minutes integer NOT NULL DEFAULT 0, xg numeric NOT NULL DEFAULT 0, xa numeric NOT NULL DEFAULT 0, points integer NOT NULL DEFAULT 0, bonus integer NOT NULL DEFAULT 0, saves integer NOT NULL DEFAULT 0, defensive_contribution integer NOT NULL DEFAULT 0, goals integer NOT NULL DEFAULT 0, assists integer NOT NULL DEFAULT 0, yellow_cards integer NOT NULL DEFAULT 0, red_cards integer NOT NULL DEFAULT 0, taken_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(player_id, gw));
+GRANT SELECT ON public.player_snapshots TO anon, authenticated;
+GRANT ALL ON public.player_snapshots TO service_role;
+ALTER TABLE public.player_snapshots ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public football snapshots" ON public.player_snapshots FOR SELECT TO anon, authenticated USING (true);
+CREATE TABLE public.projection_log (gw integer NOT NULL, player_id integer NOT NULL, position_id integer NOT NULL, xpts numeric NOT NULL, pred_p60 numeric NOT NULL, predicted_sd numeric NOT NULL DEFAULT 0, baseline_form numeric NOT NULL DEFAULT 0, baseline_ppg numeric NOT NULL DEFAULT 0, actual_points numeric, actual_p60 numeric, model_version text NOT NULL DEFAULT '2.0', created_at timestamptz NOT NULL DEFAULT now(), scored_at timestamptz, PRIMARY KEY(gw, player_id));
+GRANT SELECT ON public.projection_log TO anon, authenticated;
+GRANT ALL ON public.projection_log TO service_role;
+ALTER TABLE public.projection_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public model accuracy" ON public.projection_log FOR SELECT TO anon, authenticated USING (true);

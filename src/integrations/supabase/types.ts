@@ -32,6 +32,105 @@ export type Database = {
         }
         Relationships: []
       }
+      player_snapshots: {
+        Row: {
+          assists: number
+          bonus: number
+          defensive_contribution: number
+          goals: number
+          gw: number
+          minutes: number
+          player_id: number
+          points: number
+          red_cards: number
+          saves: number
+          taken_at: string
+          xa: number
+          xg: number
+          yellow_cards: number
+        }
+        Insert: {
+          assists?: number
+          bonus?: number
+          defensive_contribution?: number
+          goals?: number
+          gw: number
+          minutes?: number
+          player_id: number
+          points?: number
+          red_cards?: number
+          saves?: number
+          taken_at?: string
+          xa?: number
+          xg?: number
+          yellow_cards?: number
+        }
+        Update: {
+          assists?: number
+          bonus?: number
+          defensive_contribution?: number
+          goals?: number
+          gw?: number
+          minutes?: number
+          player_id?: number
+          points?: number
+          red_cards?: number
+          saves?: number
+          taken_at?: string
+          xa?: number
+          xg?: number
+          yellow_cards?: number
+        }
+        Relationships: []
+      }
+      projection_log: {
+        Row: {
+          actual_p60: number | null
+          actual_points: number | null
+          baseline_form: number
+          baseline_ppg: number
+          created_at: string
+          gw: number
+          model_version: string
+          player_id: number
+          position_id: number
+          pred_p60: number
+          predicted_sd: number
+          scored_at: string | null
+          xpts: number
+        }
+        Insert: {
+          actual_p60?: number | null
+          actual_points?: number | null
+          baseline_form?: number
+          baseline_ppg?: number
+          created_at?: string
+          gw: number
+          model_version?: string
+          player_id: number
+          position_id: number
+          pred_p60: number
+          predicted_sd?: number
+          scored_at?: string | null
+          xpts: number
+        }
+        Update: {
+          actual_p60?: number | null
+          actual_points?: number | null
+          baseline_form?: number
+          baseline_ppg?: number
+          created_at?: string
+          gw?: number
+          model_version?: string
+          player_id?: number
+          position_id?: number
+          pred_p60?: number
+          predicted_sd?: number
+          scored_at?: string | null
+          xpts?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
