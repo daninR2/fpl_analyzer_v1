@@ -1,0 +1,3 @@
+import {it,expect} from 'vitest';
+import {accuracyMetrics} from './accuracy';
+it('scores only observed outcomes against two baselines',()=>{const rows=[{position_id:2,xpts:5,pred_p60:.8,actual_points:3,actual_p60:1,baseline_form:4,baseline_ppg:6},{position_id:2,xpts:1,pred_p60:.2,actual_points:3,actual_p60:0,baseline_form:2,baseline_ppg:2},{position_id:2,xpts:20,pred_p60:.9,actual_points:null,actual_p60:null,baseline_form:20,baseline_ppg:20}];const m=accuracyMetrics(rows);expect(m.count).toBe(2);expect(m.mae).toBe(2);expect(m.bias).toBe(0);expect(m.formMae).toBe(1);expect(m.ppgMae).toBe(2);expect(m.calibration[4]?.actual).toBe(1);});

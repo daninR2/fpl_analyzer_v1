@@ -14,6 +14,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as DashboardTeamIdRouteImport } from './routes/dashboard.$teamId'
 import { Route as InsightsTeamIdRouteImport } from './routes/insights.$teamId'
 import { Route as LeagueLeagueIdRouteImport } from './routes/league.$leagueId'
+import { Route as ApiPublicJobsModelTrackingRouteImport } from './routes/api/public/jobs/model-tracking'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,12 @@ const LeagueLeagueIdRoute = LeagueLeagueIdRouteImport.update({
   path: '/league/$leagueId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsModelTrackingRoute =
+  ApiPublicJobsModelTrackingRouteImport.update({
+    id: '/api/public/jobs/model-tracking',
+    path: '/api/public/jobs/model-tracking',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +54,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$teamId': typeof DashboardTeamIdRoute
   '/insights/$teamId': typeof InsightsTeamIdRoute
   '/league/$leagueId': typeof LeagueLeagueIdRoute
+  '/api/public/jobs/model-tracking': typeof ApiPublicJobsModelTrackingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +62,7 @@ export interface FileRoutesByTo {
   '/dashboard/$teamId': typeof DashboardTeamIdRoute
   '/insights/$teamId': typeof InsightsTeamIdRoute
   '/league/$leagueId': typeof LeagueLeagueIdRoute
+  '/api/public/jobs/model-tracking': typeof ApiPublicJobsModelTrackingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,6 +71,7 @@ export interface FileRoutesById {
   '/dashboard/$teamId': typeof DashboardTeamIdRoute
   '/insights/$teamId': typeof InsightsTeamIdRoute
   '/league/$leagueId': typeof LeagueLeagueIdRoute
+  '/api/public/jobs/model-tracking': typeof ApiPublicJobsModelTrackingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -71,6 +81,7 @@ export interface FileRouteTypes {
     | '/dashboard/$teamId'
     | '/insights/$teamId'
     | '/league/$leagueId'
+    | '/api/public/jobs/model-tracking'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -78,6 +89,7 @@ export interface FileRouteTypes {
     | '/dashboard/$teamId'
     | '/insights/$teamId'
     | '/league/$leagueId'
+    | '/api/public/jobs/model-tracking'
   id:
     | '__root__'
     | '/'
@@ -85,6 +97,7 @@ export interface FileRouteTypes {
     | '/dashboard/$teamId'
     | '/insights/$teamId'
     | '/league/$leagueId'
+    | '/api/public/jobs/model-tracking'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -93,6 +106,7 @@ export interface RootRouteChildren {
   DashboardTeamIdRoute: typeof DashboardTeamIdRoute
   InsightsTeamIdRoute: typeof InsightsTeamIdRoute
   LeagueLeagueIdRoute: typeof LeagueLeagueIdRoute
+  ApiPublicJobsModelTrackingRoute: typeof ApiPublicJobsModelTrackingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -132,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LeagueLeagueIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/model-tracking': {
+      id: '/api/public/jobs/model-tracking'
+      path: '/api/public/jobs/model-tracking'
+      fullPath: '/api/public/jobs/model-tracking'
+      preLoaderRoute: typeof ApiPublicJobsModelTrackingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -141,6 +162,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardTeamIdRoute: DashboardTeamIdRoute,
   InsightsTeamIdRoute: InsightsTeamIdRoute,
   LeagueLeagueIdRoute: LeagueLeagueIdRoute,
+  ApiPublicJobsModelTrackingRoute: ApiPublicJobsModelTrackingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
