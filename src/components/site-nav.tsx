@@ -13,7 +13,7 @@ export function SiteNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
+      <div className="mx-auto flex min-h-16 flex-wrap max-w-6xl items-center justify-between gap-2 px-4 py-2">
         <Link to="/" className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Trophy className="h-4 w-4" />
@@ -21,7 +21,7 @@ export function SiteNav() {
           <span className="font-display text-base font-bold tracking-tight">FPL League Hub</span>
         </Link>
 
-        <nav className="flex items-center gap-1 text-sm">
+        <nav className="flex flex-wrap items-center gap-1 text-xs sm:text-sm">
           {teamId ? (
             <Link
               to="/dashboard/$teamId"
@@ -40,6 +40,7 @@ export function SiteNav() {
               Predictions
             </Link>
           ) : null}
+          <Link to="/model" className="rounded-md px-2 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Accuracy</Link>
           <Link
             to="/about"
             className="rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

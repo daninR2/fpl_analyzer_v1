@@ -359,7 +359,7 @@ export const getInsights = createServerFn({ method: "POST" })
     const value = await import("./fpl/value");
     const { teamId } = input;
 
-    const bs = (await loadBootstrap()).data as unknown as Bootstrap & {
+    const bs = (await loadBootstrap()).data as unknown as Omit<Bootstrap, "elements"> & {
       elements: RawElement[];
       fixtures: Record<string, RawFixture[]>;
     };

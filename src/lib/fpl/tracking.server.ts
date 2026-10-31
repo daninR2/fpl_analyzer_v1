@@ -6,7 +6,7 @@ import type {Bootstrap} from './types';
 /** Called only after cron authentication; never from public page loads. */
 export async function trackModel(){
  const {supabaseAdmin}=await import('@/integrations/supabase/client.server');
- const bs=await fplFetch<Bootstrap & {elements:RawElement[];fixtures:Record<string,RawFixture[]>}>('/bootstrap-static');
+ const bs=await fplFetch<Omit<Bootstrap,"elements"> & {elements:RawElement[];fixtures:Record<string,RawFixture[]>}>('/bootstrap-static');
  const current=bs.events.current??0;if(!current)return {snapshots:0,logged:0,scored:0};
  const check=(error:unknown)=>{if(error)throw new Error('Model tracking storage failed.');};
  const snapshots=bs.elements.map(e=>({player_id:e.id,gw:current,minutes:e.minutes,xg:Number(e.expected_goals)||0,xa:Number(e.expected_assists)||0,points:e.total_points,bonus:e.bonus,saves:e.saves,defensive_contribution:e.defensive_contribution??0,goals:e.goals_scored,assists:e.assists,yellow_cards:e.yellow_cards,red_cards:e.red_cards??0,taken_at:new Date().toISOString()}));
