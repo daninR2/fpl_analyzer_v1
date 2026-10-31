@@ -1,0 +1,7 @@
+import {it,expect} from 'vitest';
+import {projectPlayers,type RawElement} from './projections';
+const element=(overrides:Partial<RawElement>={}):RawElement=>({id:1,code:9999999,web_name:'Player',team:1,element_type:3,status:'a',minutes:810,starts:9,total_points:30,form:'3',points_per_game:'3',expected_goals:'0',expected_assists:'0',expected_goal_involvements:'0',expected_goals_conceded:'0',goals_scored:0,assists:0,saves:0,bonus:0,yellow_cards:0,chance_of_playing_next_round:null,...overrides});
+const project=(e:RawElement)=>projectPlayers({elements:[e,element({id:2,team:2})],teams:[{id:1,short_name:'ARS'},{id:2,short_name:'MCI'}],fixtures:[{id:1,event:10,team_h:1,team_a:2,kickoff_time:null}],events:[10],gamesPlayed:9,deadlines:[{id:10,deadline_time:'2026-10-31T11:00:00Z'}]}).players.get(1);
+it('penalty taker floor prevents zero-sample xG from disappearing',()=>{const p=project(element({penalties_order:1}));expect((p?.xg90??0)*(p?.minutesShare??0)).toBeGreaterThanOrEqual(.12*.76-.01);});
+it('red cards reduce projected points',()=>{expect(project(element({red_cards:4}))?.total).toBeLessThan(project(element({red_cards:0}))?.total??0);});
+it('dated injury zeros points before return while preserving healthy value',()=>{const p=project(element({status:'i',chance_of_playing_next_round:0,news:'Expected back 5 Nov'}));expect(p?.byEvent[10]).toBe(0);expect(p?.healthyTotal).toBeGreaterThan(0);});

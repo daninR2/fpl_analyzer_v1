@@ -20,7 +20,8 @@ export async function trackModel(){
  const existing=await supabaseAdmin.from('projection_log').select('player_id').eq('gw',current);check(existing.error);
  const ids=new Set(existing.data?.map(r=>r.player_id));
  const missing=bs.elements.filter(e=>!ids.has(e.id));
- if(missing.length){const history=await mapWithConcurrency(missing.map(e=>e.id),async id=>({id,...await loadPlayerHistory(id)}));
+ if(missing.length){const relevant=missing.filter(e=>e.minutes>0).sort((a,b)=>b.minutes-a.minutes).slice(0,MODEL.freeAgentHistoryLimit);
+ const history=await mapWithConcurrency(relevant.map(e=>e.id),async id=>({id,...await loadPlayerHistory(id)}));
  const finished=bs.events.data.filter(e=>e.finished).length;
  const projections=projectPlayers({elements:bs.elements,teams:bs.teams,fixtures,events:[current],gamesPlayed:finished,deadlines:bs.events.data,histories:new Map(history.map(h=>[h.id,h.history]))}).players;
  const logs=missing.flatMap(e=>{const p=projections.get(e.id),h=history.find(h=>h.id===e.id)?.history.filter(h=>h.event<current).sort((a,b)=>b.event-a.event).slice(0,5);if(!p)return [];return [{gw:current,player_id:e.id,position_id:e.element_type,xpts:p.byEvent[current]??0,pred_p60:p.p60ByEvent?.[current]??0,predicted_sd:p.sd??0,baseline_form:h?.length?h.reduce((s,r)=>s+r.points,0)/h.length:Number(e.form)||0,baseline_ppg:Number(e.points_per_game)||0,model_version:MODEL.version}];});

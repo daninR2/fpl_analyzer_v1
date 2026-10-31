@@ -137,8 +137,11 @@ export function projectPlayers(opts:{elements:RawElement[];teams:{id:number;shor
  let xg90=(rate(recent.xg90,e.expected_goals)*evidenceN+(prior&&prior.minutes>0?prior.xg/prior.minutes*90:xp)*priorN+xp*MODEL.positionalPriorNineties)/(evidenceN+priorN+MODEL.positionalPriorNineties);
  const xa90=(rate(recent.xa90,e.expected_assists)*evidenceN+(prior&&prior.minutes>0?prior.xa/prior.minutes*90:ap)*priorN+ap*MODEL.positionalPriorNineties)/(evidenceN+priorN+MODEL.positionalPriorNineties);
  // Starts available in bootstrap; a meaningful prior protects zero-minute opening weeks.
- const seasonP60=nineties>0?clamp((e.starts??e.minutes/84)/gp):clamp((prior?.minutes??0)/(38*84));
- const seasonPb=clamp((share-seasonP60*MODEL.startMinutes/90)/(MODEL.subMinutes/90),0,1-seasonP60);
+ const seasonHistory=opts.histories?.get(e.id)??[];
+ const seasonMinutes=new Map<number,number>();for(const h of seasonHistory.filter(h=>h.event<=gamesPlayed&&h.fit!==false))seasonMinutes.set(h.event,(seasonMinutes.get(h.event)??0)+h.minutes);
+ const seasonDen=seasonMinutes.size;
+ const seasonP60=seasonDen ? [...seasonMinutes.values()].filter(m=>m>=60).length/seasonDen : nineties>0?clamp((e.starts??e.minutes/MODEL.startMinutes)/gp):clamp((prior?.minutes??0)/(38*MODEL.startMinutes));
+ const seasonPb=seasonDen ? [...seasonMinutes.values()].filter(m=>m>0&&m<60).length/seasonDen : clamp((share-seasonP60*MODEL.startMinutes/90)/(MODEL.subMinutes/90),0,1-seasonP60);
  const minutes=minutesModel(recent,{p60:seasonP60,pb:seasonPb});
  if(e.penalties_order===1&&minutes.expectedMinutes>0)xg90=Math.max(xg90,MODEL.penaltyFloor*90/minutes.expectedMinutes);
  const news=e.news??'',injury=availability(e)<1&&['i','d','s'].includes(e.status)?{returnDate:returnDate(news)}:null;

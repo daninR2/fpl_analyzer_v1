@@ -470,7 +470,7 @@ export const getInsights = createServerFn({ method: "POST" })
       statusRes.data.element_status.filter((s) => s.owner !== null).map((s) => s.element),
     );
     const freeAgents = [...players.values()]
-      .filter((p) => !owned.has(p.playerId) && p.availability > 0)
+      .filter((p) => !owned.has(p.playerId) && !["u", "n"].includes(bs.elements.find(e=>e.id===p.playerId)?.status ?? "u"))
       .map(strip)
       .sort((a, b) => b.total - a.total);
 
