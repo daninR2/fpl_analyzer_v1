@@ -237,6 +237,7 @@ export type InsightsPayload = {
   longTermRecommendations?: Recommendation[];
   trades?: TradeIdea[];
   rivalBuyLows?: { teamName: string; player: InsightPlayer }[];
+  teamRatings?: TeamRating[];
   dataCoverage?: { official: number; snapshots: number; season: number };
   teamName: string;
   leagueId: number;
@@ -249,3 +250,5 @@ export type InsightsPayload = {
 };
 
 export type TradeIdea = { rivalEntryId: number; rivalTeamName: string; give: InsightPlayer; receive: InsightPlayer; myGain: number; theirGain: number };
+
+export type TeamRating = { entryId: number; teamName: string; rank: number; rating: number; xiPerGw: number; benchPerGw: number; lines: { gk: number; def: number; mid: number; fwd: number }; star: string };

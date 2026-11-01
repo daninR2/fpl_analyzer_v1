@@ -1,3 +1,4 @@
+import { rateTeams } from "@/lib/fpl/rating";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -524,7 +525,10 @@ export const getInsights = createServerFn({ method: "POST" })
     }
     const stashes = stashCandidates.sort((a, b) => b.gainPerGw - a.gainPerGw).slice(0, 4);
 
+    const teamRatings = rateTeams([{ entryId: teamId, teamName: entry.name, squad: squadOf(teamId).map(p=>annotations.get(p.playerId)??p) }, ...rivals], holdEvents.length);
+
     return {
+      teamRatings,
       stashes,
       teamName: entry.name,
       leagueId,

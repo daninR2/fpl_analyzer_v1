@@ -298,6 +298,47 @@ function InsightsPage() {
           </section>
         ) : null}
 
+        {(data?.teamRatings?.length ?? 0) > 0 ? (
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Squad quality rating</h2>
+              <p className="mt-1 text-xs text-muted-foreground">How good each squad's players are when fit, ignoring points and wins so far. Best squad in the league = 100.</p>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-border bg-card/60">
+              <table className="w-full text-sm">
+                <thead className="text-xs uppercase text-muted-foreground">
+                  <tr className="border-b border-border">
+                    <th className="p-3 text-left">#</th><th className="p-3 text-left">Team</th><th className="p-3 text-left">Rating</th>
+                    <th className="p-3 text-right">GK</th><th className="p-3 text-right">DEF</th><th className="p-3 text-right">MID</th><th className="p-3 text-right">FWD</th>
+                    <th className="p-3 text-right">Bench</th><th className="p-3 text-left">Best player</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data?.teamRatings?.map((t) => {
+                    const mine = t.entryId === Number(teamId);
+                    return (
+                      <tr key={t.entryId} className={`border-b border-border/50 last:border-0 ${mine ? "bg-primary/10 font-semibold" : ""}`}>
+                        <td className="p-3">{t.rank}</td>
+                        <td className="p-3">{t.teamName}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-24 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${t.rating}%` }} /></div>
+                            <span>{t.rating}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-right">{t.lines.gk}</td><td className="p-3 text-right">{t.lines.def}</td><td className="p-3 text-right">{t.lines.mid}</td><td className="p-3 text-right">{t.lines.fwd}</td>
+                        <td className="p-3 text-right text-muted-foreground">{t.benchPerGw.toFixed(1)}</td>
+                        <td className="p-3 text-muted-foreground">{t.star}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground">Position columns compare each line to the league's best (100). Bench = expected points per gameweek from your substitutes.</p>
+          </section>
+        ) : null}
+
         <section className="space-y-4">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Trade ideas</h2>
           {(data?.trades?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No mutually beneficial same-position trades found.</p> : <div className="grid gap-3 md:grid-cols-2">{data?.trades?.map(t => <div key={`${t.give.playerId}-${t.receive.playerId}`} className="rounded-lg border border-border bg-card/60 p-4">
