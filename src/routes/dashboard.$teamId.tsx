@@ -110,6 +110,21 @@ function Dashboard() {
     retry: false,
   });
 
+
+  const data = managerQuery.data;
+  const history = data?.history ?? [];
+  const leagueChart = useMemo(() => {
+    const rows = new Map<number, Record<string, number | string>>();
+    for (const team of data?.leagueHistory ?? []) {
+      for (const point of team.history) {
+        const row = rows.get(point.event) ?? { event: point.event };
+        row[String(team.entryId)] = point[leagueMetric];
+        row[`${team.entryId}:record`] = point.record;
+        rows.set(point.event, row);
+      }
+    }
+    return [...rows.values()].sort((a, b) => Number(a["event"]) - Number(b["event"]));
+  }, [data?.leagueHistory, leagueMetric]);
   if (managerQuery.isError) {
     return (
       <div className="min-h-screen">
@@ -132,21 +147,6 @@ function Dashboard() {
       </div>
     );
   }
-
-  const data = managerQuery.data;
-  const history = data?.history ?? [];
-  const leagueChart = useMemo(() => {
-    const rows = new Map<number, Record<string, number | string>>();
-    for (const team of data?.leagueHistory ?? []) {
-      for (const point of team.history) {
-        const row = rows.get(point.event) ?? { event: point.event };
-        row[String(team.entryId)] = point[leagueMetric];
-        row[`${team.entryId}:record`] = point.record;
-        rows.set(point.event, row);
-      }
-    }
-    return [...rows.values()].sort((a, b) => Number(a["event"]) - Number(b["event"]));
-  }, [data?.leagueHistory, leagueMetric]);
   
   return (
     <div className="min-h-screen">
