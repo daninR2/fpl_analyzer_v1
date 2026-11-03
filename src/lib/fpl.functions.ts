@@ -538,6 +538,8 @@ export const getInsights = createServerFn({ method: "POST" })
       trades,
       rivalBuyLows: rivals.flatMap(r=>r.squad.filter(p=>p.buyLow).map(player=>({teamName:r.teamName,player}))),
       dataCoverage: {official:histories.filter(h=>h.source==='official').length,snapshots:histories.filter(h=>h.source==='snapshots').length,season:histories.filter(h=>h.source==='season').length},
+      rivalSquads: rivals.map(r=>({entryId:r.entryId,teamName:r.teamName,squad:r.squad})),
+      gamesPlayed: finishedGames,
       squad: squad.sort((a,b)=>(b.vorp??0)-(a.vorp??0)),
       matchups,
       recommendations,

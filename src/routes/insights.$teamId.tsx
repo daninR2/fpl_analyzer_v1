@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowRight, Sparkles, TrendingUp } from "lucide-react";
 
 import { SiteNav } from "@/components/site-nav";
 import { Button } from "@/components/ui/button";
+import { TradeCalculator } from "@/components/trade-calculator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getInsights } from "@/lib/fpl.functions";
 import type { InsightPlayer, MatchupSide } from "@/lib/fpl/types";
@@ -336,6 +337,13 @@ function InsightsPage() {
               </table>
             </div>
             <p className="text-xs text-muted-foreground">Position columns compare each line to the league's best (100). Bench = expected points per gameweek from your substitutes.</p>
+          </section>
+        ) : null}
+
+        {data ? (
+          <section className="space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Trade calculator</h2>
+            <TradeCalculator mine={data.squad} rivals={data.rivalSquads ?? []} nowEvents={data.events} holdEvents={data.holdEvents ?? data.events} gamesPlayed={data.gamesPlayed ?? 0} />
           </section>
         ) : null}
 

@@ -59,3 +59,21 @@ export function findTrades(mine:InsightPlayer[],rivals:{entryId:number;teamName:
  if(myGain>0&&theirGain>0)result.push({rivalEntryId:rival.entryId,rivalTeamName:rival.teamName,give,receive,myGain,theirGain});}}
  return result.sort((a,b)=>b.myGain+b.theirGain-a.myGain-a.theirGain).slice(0,5);
 }
+export type TradeVerdict = {myNow:number;myHold:number;theirHold:number;confidence:number;verdict:'good'|'even'|'bad';notes:string[]};
+/** Evaluate a user-built trade (any number of players each side) on optimized squad value. */
+export function evaluateTrade(mine:InsightPlayer[],theirs:InsightPlayer[],give:InsightPlayer[],receive:InsightPlayer[],nowEvents:number[],holdEvents:number[],gamesPlayed:number):TradeVerdict{
+ const g=new Set(give.map(p=>p.playerId)),r=new Set(receive.map(p=>p.playerId));
+ const myAfter=[...mine.filter(p=>!g.has(p.playerId)),...receive],theirAfter=[...theirs.filter(p=>!r.has(p.playerId)),...give];
+ const myNow=teamValue(myAfter,nowEvents)-teamValue(mine,nowEvents),myHold=teamValue(myAfter,holdEvents)-teamValue(mine,holdEvents),theirHold=teamValue(theirAfter,holdEvents)-teamValue(theirs,holdEvents);
+ const sd=Math.sqrt([...give,...receive].reduce((s,p)=>s+horizonVariance(p,holdEvents),0));
+ const confidence=sd>0?normalCdf(myHold/sd):myHold>0?1:myHold<0?0:.5;
+ const verdict=myHold>=1&&confidence>=MODEL.confidenceThreshold?'good':myHold<=-1?'bad':'even';
+ const notes:string[]=[];
+ for(let pos=1;pos<=4;pos++){const before=mine.filter(p=>p.positionId===pos).length,after=myAfter.filter(p=>p.positionId===pos).length;if(before!==after)notes.push(`Changes your ${['','GK','DEF','MID','FWD'][pos]} count from ${before} to ${after}.`);}
+ if(!optimizeLineup(myAfter,holdEvents[0]??nowEvents[0]??1).complete)notes.push('You could not field a legal starting XI after this trade.');
+ for(const p of give)if(protectedDrop(p,gamesPlayed,holdEvents.length))notes.push(`${p.name} is protected (track record, new arrival or quality injury); think twice before moving them.`);
+ for(const p of receive)if(p.injury)notes.push(`${p.name} is injured${p.injury.returnDate?` (expected back ${p.injury.returnDate})`:''}; value assumes the projected return.`);
+ if(theirHold<=0)notes.push('This trade makes their squad worse, so they may decline.');
+ if(myNow<0&&myHold>0)notes.push('Costs you points in the next few gameweeks but pays off long term.');
+ return {myNow,myHold,theirHold,confidence,verdict,notes};
+}

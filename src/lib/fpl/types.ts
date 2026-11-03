@@ -237,6 +237,8 @@ export type InsightsPayload = {
   longTermRecommendations?: Recommendation[];
   trades?: TradeIdea[];
   rivalBuyLows?: { teamName: string; player: InsightPlayer }[];
+  rivalSquads?: { entryId: number; teamName: string; squad: InsightPlayer[] }[];
+  gamesPlayed?: number;
   teamRatings?: TeamRating[];
   dataCoverage?: { official: number; snapshots: number; season: number };
   teamName: string;
